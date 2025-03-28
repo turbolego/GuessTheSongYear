@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Custom attributes for YouTubePlayerView from com.pierfrancescosoffritti.androidyoutubeplayer -->
+    <declare-styleable name="YouTubePlayerView">
+        <attr name="showFullScreenButton" format="boolean" />
+    </declare-styleable>
+</resources>

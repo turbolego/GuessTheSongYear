@@ -1,7 +1,18 @@
 <resources>
-    <string name="app_name">GuessTheSongYear</string>
+    <string name="app_name">Random Music Video Player</string>
     <string name="action_settings">Settings</string>
-    <!-- Strings used for fragments for navigation -->
+    
+    <!-- App strings -->
+    <string name="app_title">Random YouTube Music Video Player</string>
+    <string name="app_description">Discover and play random music videos from YouTube with at least 1 million views.</string>
+    <string name="sign_in">Sign in with Google</string>
+    <string name="sign_out">Sign Out</string>
+    <string name="next_video">Next Random Video</string>
+    <string name="video_countdown">Video starting in %1$d…</string>
+    <string name="loading">Loading…</string>
+    <string name="error_no_video">Couldn\'t load a video. Try again.</string>
+    
+    <!-- Legacy strings - can be removed later -->
     <string name="first_fragment_label">First Fragment</string>
     <string name="second_fragment_label">Second Fragment</string>
     <string name="next">Next</string>
