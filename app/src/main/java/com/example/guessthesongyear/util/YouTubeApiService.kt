@@ -1,17 +1,16 @@
 package com.example.guessthesongyear.util
 
 import android.content.Context
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
+import android.util.Log
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.youtube.YouTube
-import com.google.api.services.youtube.YouTubeScopes
 import com.google.api.services.youtube.model.Video
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Collections
 import kotlin.random.Random
+
+private const val TAG = "YouTubeApiService"
 
 /**
  * Handles interactions with the YouTube Data API
@@ -32,7 +31,6 @@ class YouTubeApiService(private val context: Context) {
             // Query for popular music videos
             val searchRequest = youtubeService.search().list(listOf("id"))
             searchRequest.part = listOf("id")
-            searchRequest.q = "official music video"
             searchRequest.type = listOf("video")
             searchRequest.videoCategoryId = "10" // Music category
             searchRequest.videoDefinition = "high"
@@ -75,6 +73,7 @@ class YouTubeApiService(private val context: Context) {
             // Fallback to a guaranteed popular music video if the search fails
             return@withContext "dQw4w9WgXcQ" // Never Gonna Give You Up
         } catch (e: Exception) {
+            Log.e(TAG, "Error fetching random video: ${e.message}", e)
             e.printStackTrace()
             return@withContext null
         }
@@ -87,6 +86,7 @@ class YouTubeApiService(private val context: Context) {
             val response = videoRequest.execute()
             if (response.items.isNotEmpty()) response.items[0] else null
         } catch (e: Exception) {
+            Log.e(TAG, "Error getting video details: ${e.message}", e)
             e.printStackTrace()
             null
         }
@@ -102,10 +102,11 @@ class YouTubeApiService(private val context: Context) {
     }
 
     private fun getYouTubeService(): YouTube? {
-        val account = GoogleSignIn.getLastSignedInAccount(context) ?: return null
+        val account = com.google.android.gms.auth.api.signin.GoogleSignIn.getLastSignedInAccount(context) ?: return null
         
-        val credential = GoogleAccountCredential.usingOAuth2(
-            context, Collections.singleton(YouTubeScopes.YOUTUBE_READONLY)
+        val credential = com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential.usingOAuth2(
+            context,
+            listOf(com.google.api.services.youtube.YouTubeScopes.YOUTUBE_READONLY)
         )
         credential.selectedAccount = account.account
         

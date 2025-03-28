@@ -18,6 +18,8 @@ googleHttpClientJackson2 = "1.43.3"
 core = "12.1.0"
 kotlinxCoroutinesAndroid = "1.7.3"
 kotlinxCoroutinesPlayServices = "1.7.3"
+googleIdentityServices = "1.1.0"
+credentialManager = "1.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,6 +39,9 @@ google-http-client-jackson2 = { group = "com.google.http-client", name = "google
 core = { group = "com.pierfrancescosoffritti.androidyoutubeplayer", name = "core", version.ref = "core" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "kotlinxCoroutinesPlayServices" }
+google-identity-services = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleIdentityServices" }
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentialManager" }
+androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentialManager" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

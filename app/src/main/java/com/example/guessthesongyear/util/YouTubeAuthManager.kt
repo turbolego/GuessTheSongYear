@@ -64,8 +64,4 @@ class YouTubeAuthManager(private val context: Context) {
             onComplete()
         }
     }
-
-    companion object {
-        const val RC_SIGN_IN = 9001
-    }
 }
