@@ -30,6 +30,7 @@ class VideoPlayerFragment : Fragment() {
     private var countdownJob: Job? = null
     private var youTubePlayer: YouTubePlayer? = null
     private var currentVideoId: String? = null
+    private var currentVideoYear: Int? = null
     private var isPlayerReady = false
     
     override fun onCreateView(
@@ -126,6 +127,7 @@ class VideoPlayerFragment : Fragment() {
         // Show loading indicator
         binding.progressLoading.visibility = View.VISIBLE
         binding.textViewCountdown.visibility = View.GONE
+        binding.textViewSongYear.visibility = View.GONE
         
         // Cancel any existing countdown
         countdownJob?.cancel()
@@ -133,16 +135,17 @@ class VideoPlayerFragment : Fragment() {
         // Get a random video
         lifecycleScope.launch {
             try {
-                val videoId = youtubeApiService.getRandomMusicVideo()
-                Log.d(TAG, "Random video ID: $videoId")
+                val videoInfo = youtubeApiService.getRandomMusicVideo()
+                Log.d(TAG, "Random video ID: ${videoInfo?.id}, Year: ${videoInfo?.releaseYear}")
                 
-                if (videoId != null) {
-                    // Store current video ID
-                    currentVideoId = videoId
+                if (videoInfo != null) {
+                    // Store current video information
+                    currentVideoId = videoInfo.id
+                    currentVideoYear = videoInfo.releaseYear
                     
                     // If player is ready, play this video
                     if (isPlayerReady) {
-                        startCountdown(videoId)
+                        startCountdown(videoInfo.id)
                     }
                 } else {
                     // No video found
@@ -184,6 +187,9 @@ class VideoPlayerFragment : Fragment() {
                 // Load the video when countdown completes
                 youTubePlayer?.loadVideo(videoId, 0f)
                 Log.d(TAG, "Video started playing: $videoId")
+                
+                // Show the release year
+                showReleaseYear()
             } catch (e: Exception) {
                 Log.e(TAG, "Error starting video: ${e.message}", e)
                 Toast.makeText(
@@ -193,6 +199,15 @@ class VideoPlayerFragment : Fragment() {
                 ).show()
             }
         }
+    }
+    
+    private fun showReleaseYear() {
+        if (currentVideoYear != null) {
+            binding.textViewSongYear.text = getString(R.string.song_release_year, currentVideoYear)
+        } else {
+            binding.textViewSongYear.text = getString(R.string.year_unknown)
+        }
+        binding.textViewSongYear.visibility = View.VISIBLE
     }
     
     private fun navigateToLogin() {

@@ -20,11 +20,17 @@ class YouTubeApiService(private val context: Context) {
     private val transport = NetHttpTransport()
     private val jsonFactory = JacksonFactory.getDefaultInstance()
     private val applicationName = "GuessTheSongYear"
+    
+    // Data class to hold video information
+    data class VideoInfo(
+        val id: String,
+        val releaseYear: Int? = null
+    )
 
     /**
      * Gets a random music video with at least 1 million views
      */
-    suspend fun getRandomMusicVideo(): String? = withContext(Dispatchers.IO) {
+    suspend fun getRandomMusicVideo(): VideoInfo? = withContext(Dispatchers.IO) {
         try {
             val youtubeService = getYouTubeService() ?: return@withContext null
 
@@ -54,10 +60,11 @@ class YouTubeApiService(private val context: Context) {
                 val randomIndex = Random.nextInt(searchResponse.items.size)
                 val videoId = searchResponse.items[randomIndex].id.videoId
                 
-                // Check if this video has enough views
+                // Check if this video has enough views and get its details
                 val videoDetails = getVideoDetails(youtubeService, videoId)
                 if (videoDetails != null && hasEnoughViews(videoDetails)) {
-                    return@withContext videoId
+                    val releaseYear = getVideoReleaseYear(videoDetails)
+                    return@withContext VideoInfo(videoId, releaseYear)
                 }
                 
                 // If the randomly chosen video doesn't have enough views, try to find one that does
@@ -65,13 +72,14 @@ class YouTubeApiService(private val context: Context) {
                     val id = item.id.videoId
                     val details = getVideoDetails(youtubeService, id)
                     if (details != null && hasEnoughViews(details)) {
-                        return@withContext id
+                        val releaseYear = getVideoReleaseYear(details)
+                        return@withContext VideoInfo(id, releaseYear)
                     }
                 }
             }
             
             // Fallback to a guaranteed popular music video if the search fails
-            return@withContext "dQw4w9WgXcQ" // Never Gonna Give You Up
+            return@withContext VideoInfo("dQw4w9WgXcQ", 1987) // Never Gonna Give You Up (1987)
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching random video: ${e.message}", e)
             e.printStackTrace()
@@ -81,7 +89,7 @@ class YouTubeApiService(private val context: Context) {
     
     private fun getVideoDetails(youtube: YouTube, videoId: String): Video? {
         return try {
-            val videoRequest = youtube.videos().list(listOf("statistics"))
+            val videoRequest = youtube.videos().list(listOf("statistics", "snippet"))
             videoRequest.id = listOf(videoId)
             val response = videoRequest.execute()
             if (response.items.isNotEmpty()) response.items[0] else null
@@ -99,6 +107,21 @@ class YouTubeApiService(private val context: Context) {
             0
         }
         return viewCount >= 1_000_000 // At least 1 million views
+    }
+    
+    private fun getVideoReleaseYear(video: Video): Int? {
+        return try {
+            val publishedAt = video.snippet?.publishedAt
+            if (publishedAt != null) {
+                // Extract the year from the publishedAt date (format: YYYY-MM-DDThh:mm:ss.sZ)
+                val year = publishedAt.toString().substring(0, 4).toInt()
+                return year
+            }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting video release year: ${e.message}", e)
+            null
+        }
     }
 
     private fun getYouTubeService(): YouTube? {
