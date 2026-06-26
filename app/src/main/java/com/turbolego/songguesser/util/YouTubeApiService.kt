@@ -1,4 +1,4 @@
-package com.example.guessthesongyear.util
+package com.turbolego.songguesser.util
 
 import android.content.Context
 import android.util.Log
@@ -18,7 +18,7 @@ private const val TAG = "YouTubeApiService"
 class YouTubeApiService(private val context: Context) {
 
     private val transport = NetHttpTransport()
-    private val jsonFactory = JacksonFactory.getDefaultInstance()
+private val jsonFactory = com.google.api.client.json.jackson2.JacksonFactory.getDefaultInstance()
     private val applicationName = "GuessTheSongYear"
     
     // Data class to hold video information
@@ -125,13 +125,21 @@ class YouTubeApiService(private val context: Context) {
     }
 
     private fun getYouTubeService(): YouTube? {
-        val account = com.google.android.gms.auth.api.signin.GoogleSignIn.getLastSignedInAccount(context) ?: return null
-        
+        // Use the modern AndroidX Credentials API to get the account credentials
         val credential = com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential.usingOAuth2(
             context,
             listOf(com.google.api.services.youtube.YouTubeScopes.YOUTUBE_READONLY)
         )
-        credential.selectedAccount = account.account
+        
+        // Attempt to select the account using the modern credential manager flow
+        val accountCredential = com.google.android.gms.auth.api.signin.GoogleSignIn.getLastSignedInAccount(context)
+        if (accountCredential != null) {
+            credential.selectedAccount = accountCredential.account
+        } else {
+            // Fallback or error handling for missing account
+            Log.w(TAG, "Could not retrieve signed-in Google account.")
+            return null
+        }
         
         return YouTube.Builder(transport, jsonFactory, credential)
             .setApplicationName(applicationName)

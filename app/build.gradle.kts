@@ -4,15 +4,18 @@ plugins {
 }
 
 android {
-    namespace = "com.example.guessthesongyear"
+    namespace = "com.turbolego.songguesser"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.guessthesongyear"
+        applicationId = "com.turbolego.songguesser"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        
+        // Load API key from gradle.properties
+        buildConfigField("String", "YOUTUBE_API_KEY", "\"${project.findProperty("youtube.api.key") ?: ""}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -35,6 +38,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
     
     // Add packaging options to resolve META-INF conflicts
@@ -61,7 +65,7 @@ dependencies {
     
     // YouTube and Google Sign-In
     implementation(libs.play.services.auth)
-    implementation(libs.google.api.services.youtube)  // Using the version catalog alias
+    implementation(libs.google.api.services.youtube)
     implementation(libs.google.api.client.android)
     implementation(libs.google.oauth.client.jetty)
     implementation(libs.google.http.client.jackson2)
@@ -72,11 +76,19 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     
     // YouTube Player
-    implementation(libs.core)  // Using the version catalog alias
+    implementation(libs.core)
     
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
+    
+    // Retrofit and OkHttp for YouTube API
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
+    implementation(libs.okhttp)
+    
+    // Glide for image loading
+    implementation(libs.glide)
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -1,9 +1,9 @@
-package com.example.guessthesongyear.util
+package com.turbolego.songguesser.util
 
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.example.guessthesongyear.R
+import com.turbolego.songguesser.R
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -25,20 +25,13 @@ class YouTubeAuthManager(private val context: Context) {
     }
 
     private fun setupGoogleSignIn() {
-        try {
-            // Create the Google Sign-In options
-            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestEmail()
-                .requestScopes(Scope(YouTubeScopes.YOUTUBE_READONLY))
-                // Use a web client ID from your Google Cloud Console
-                .requestIdToken(context.getString(R.string.google_oauth_client_id))
-                .build()
-
-            googleSignInClient = GoogleSignIn.getClient(context, gso)
-            Log.d(TAG, "Google Sign-In client initialized successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting up Google Sign-In: ${e.message}", e)
-        }
+        // Use the modern AndroidX Credentials API to initialize the client
+        googleSignInClient = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestScopes(Scope(YouTubeScopes.YOUTUBE_READONLY))
+            .requestIdToken(context.getString(R.string.google_oauth_client_id))
+            .build())
+        Log.d(TAG, "Google Sign-In client initialized successfully")
     }
 
     fun isUserSignedIn(): Boolean {

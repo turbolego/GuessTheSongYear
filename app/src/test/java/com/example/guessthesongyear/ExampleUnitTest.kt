@@ -1,4 +1,4 @@
-package com.example.guessthesongyear
+package com.turbolego.songguesser
 
 import org.junit.Test
 

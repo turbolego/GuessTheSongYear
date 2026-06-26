@@ -1,4 +1,4 @@
-package com.example.guessthesongyear
+package com.turbolego.songguesser
 
 import android.os.Bundle
 import android.util.Log
@@ -8,9 +8,9 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import com.example.guessthesongyear.databinding.FragmentVideoPlayerBinding
-import com.example.guessthesongyear.util.YouTubeApiService
-import com.example.guessthesongyear.util.YouTubeAuthManager
+import com.turbolego.songguesser.BuildConfig
+import com.turbolego.songguesser.databinding.FragmentVideoPlayerBinding
+import com.turbolego.songguesser.YouTubeApiServiceImpl
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
@@ -25,8 +25,7 @@ class VideoPlayerFragment : Fragment() {
     private var _binding: FragmentVideoPlayerBinding? = null
     private val binding get() = _binding!!
     
-    private lateinit var authManager: YouTubeAuthManager
-    private lateinit var youtubeApiService: YouTubeApiService
+    private lateinit var youtubeApiService: YouTubeApiServiceImpl
     private var countdownJob: Job? = null
     private var youTubePlayer: YouTubePlayer? = null
     private var currentVideoId: String? = null
@@ -45,9 +44,8 @@ class VideoPlayerFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        // Initialize services
-        authManager = YouTubeAuthManager(requireContext())
-        youtubeApiService = YouTubeApiService(requireContext())
+        // Initialize API service
+        youtubeApiService = YouTubeApiServiceImpl(apiKey = BuildConfig.YOUTUBE_API_KEY)
         
         // Setup UI components
         setupSignOutButton()
@@ -107,10 +105,7 @@ class VideoPlayerFragment : Fragment() {
     private fun setupSignOutButton() {
         binding.buttonSignOut.setOnClickListener {
             Log.d(TAG, "Sign out button clicked")
-            authManager.signOut {
-                Log.d(TAG, "Sign out complete, navigating to login")
-                navigateToLogin()
-            }
+            navigateToLogin()
         }
     }
     
@@ -135,21 +130,35 @@ class VideoPlayerFragment : Fragment() {
         // Get a random video
         lifecycleScope.launch {
             try {
-                val videoInfo = youtubeApiService.getRandomMusicVideo()
-                Log.d(TAG, "Random video ID: ${videoInfo?.id}, Year: ${videoInfo?.releaseYear}")
-                
-                if (videoInfo != null) {
-                    // Store current video information
-                    currentVideoId = videoInfo.id
-                    currentVideoYear = videoInfo.releaseYear
-                    
-                    // If player is ready, play this video
-                    if (isPlayerReady) {
-                        startCountdown(videoInfo.id)
+                val response = youtubeApiService.getRandomMusicVideo()
+                if (response.isSuccessful) {
+                    val searchResponse = response.body()
+                    if (searchResponse != null) {
+                        val videoInfo = youtubeApiService.extractVideoInfo(searchResponse)
+                        Log.d(TAG, "Random video ID: ${videoInfo?.id}, Year: ${videoInfo?.releaseYear}")
+                        
+                        if (videoInfo != null) {
+                            // Store current video information
+                            currentVideoId = videoInfo.id
+                            currentVideoYear = videoInfo.releaseYear
+                            
+                            // If player is ready, play this video
+                            if (isPlayerReady) {
+                                startCountdown(videoInfo.id)
+                            }
+                        } else {
+                            // No video found
+                            Log.e(TAG, "Failed to get a random video")
+                            Toast.makeText(
+                                requireContext(),
+                                R.string.error_no_video,
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            binding.progressLoading.visibility = View.GONE
+                        }
                     }
                 } else {
-                    // No video found
-                    Log.e(TAG, "Failed to get a random video")
+                    Log.e(TAG, "API call failed: ${response.message()}")
                     Toast.makeText(
                         requireContext(),
                         R.string.error_no_video,
