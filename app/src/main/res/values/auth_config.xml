@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Replace with your actual OAuth client ID from Google Cloud Console -->
-    <string name="google_oauth_client_id">509234965651-814g29uv2qd4jldtsh837u9ap5494s29.apps.googleusercontent.com</string> <!-- Web application -->
-    <!--<string name="google_oauth_client_id">509234965651-o04klu7gkbg6ioo7eeuvnqn6rs1bnsjv.apps.googleusercontent.com</string> --> <!-- Android -->
+    <!-- OAuth client IDs for Google Sign-In - moved to strings.xml to avoid duplicates -->
 </resources>

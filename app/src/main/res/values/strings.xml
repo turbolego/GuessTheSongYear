@@ -1,18 +1,18 @@
 <resources>
-    <string name="app_name">Random Music Video Player</string>
+    <string name="app_name">Song Year Guess</string>
     <string name="action_settings">Settings</string>
     
     <!-- App strings -->
-    <string name="app_title">Random YouTube Music Video Player</string>
-    <string name="app_description">Discover and play random music videos from YouTube with at least 1 million views.</string>
-    <string name="sign_in">Sign in with Google</string>
-    <string name="sign_out">Sign Out</string>
-    <string name="next_video">Next Random Video</string>
+    <string name="app_title">Song Year Guess</string>
+    <string name="app_description">Guess the release year of random music videos.</string>
+    <string name="next_video">Next Video</string>
     <string name="video_countdown">Video starting in %1$d…</string>
     <string name="loading">Loading…</string>
     <string name="error_no_video">Couldn\'t load a video. Try again.</string>
     <string name="song_release_year">Released in: %1$d</string>
     <string name="year_unknown">Release year unknown</string>
+    <string name="unknown_date">Unknown date</string>
+    <string name="app_logo">App logo</string>
     
     <!-- Legacy strings - can be removed later -->
     <string name="first_fragment_label">First Fragment</string>
@@ -56,5 +56,4 @@
         libero vel nunc consequat, quis tincidunt nisl eleifend. Cras bibendum enim a justo luctus
         vestibulum. Fusce dictum libero quis erat maximus, vitae volutpat diam dignissim.
     </string>
-    <string name="app_logo">App logo</string>
 </resources>

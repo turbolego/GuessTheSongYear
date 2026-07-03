@@ -1,25 +1,51 @@
 # Gradle og bygging
 .gradle/
-gradle/gradle-daemon-jvm.properties
 build/
-
-# Lokale innstillinger og sensitive data
 local.properties
+*.iml
 *.jks
 *.keystore
+gradle/gradle-daemon-jvm.properties
 
 # IDE (Android Studio / IntelliJ)
 .idea/
 *.iml
+misc.xml
+modules.xml
+workspace.xml
 
 # Android-spesifikt
 captures/
+.output/
 .navigation/
+app/build/
+app/output-metadata/
 
 # Native kode (C/C++)
 .cxx/
 .externalNativeBuild/
 
-# Systemfiler (Mac / Windows)
+# Android Testing
+*.apk
+*.ap_
+*.aab
+
+# Firebase
+google-services.json
+
+# Build variants
+app/release/
+
+# Systemfiler (Mac / Windows / Linux)
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Keystore-filer (sensitive)
+keystore/
+
+# ProGuard
+proguard/
+
+# Downloaded tools and temporary files
+cmdline-tools.zip
