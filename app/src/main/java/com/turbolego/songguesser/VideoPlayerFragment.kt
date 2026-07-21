@@ -18,13 +18,107 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.seconds
 
 private const val TAG = "VideoPlayerFragment"
 
 /**
- * A known video with its release year.
+ * A known video with its release year (used as fallback).
  */
 data class KnownVideo(val id: String, val year: Int)
+
+/**
+ * A video with its release year and view count (from API).
+ */
+data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
+
+/**
+ * Fallback list of popular music videos with known release years.
+ * Used when InnerTube search fails or returns no results.
+ * These are well-known, stable videos that are consistently available on YouTube.
+ */
+private val fallbackVideoList = listOf(
+    // 1980s
+    KnownVideo("dQw4w9WgXcQ", 1987),       // Rick Astley - Never Gonna Give You Up
+    KnownVideo("ZbZSe6N_BXs", 1985),       // Madonna - Material Girl
+    KnownVideo("2Z8IUAiIufKN", 1983),      // Michael Jackson - Thriller
+    KnownVideo("djV1KL4Btzw", 1984),       // Duran Duran - Hungry Like the Wolf
+    KnownVideo("rYEDA3JiTEA", 1984),       // A-ha - Take On Me
+    KnownVideo("1w7OgIMMRc4", 1985),       // Guns N' Roses - Sweet Child O' Mine
+    KnownVideo("1G4isv_Fyls", 1985),       // Michael Jackson - Billie Jean
+    KnownVideo("hr0ObGAUDlQ", 1982),       // Blondie - Rapture
+
+    // 1990s
+    KnownVideo("hcwnL9a61o0", 1999),       // Backstreet Boys - I Want It That Way
+    KnownVideo("tF3iR0rN-8g", 1991),       // Nirvana - Smells Like Teen Spirit
+    KnownVideo("q3zKKtYsEj8", 1994),       // Red Hot Chili Peppers - Give It Away
+    KnownVideo("ZmDBbnMFK70", 1999),       // Spice Girls - Say You'll Be There
+    KnownVideo("YR5W3FKE88Q", 1998),       // Vengaboys - Boom, Boom, Boom!!
+    KnownVideo("fLexgOxsZu0", 1996),       // Spice Girls - Spice Up Your Life
+    KnownVideo("XbGsChTe4go", 1999),       // Aqua - Barbie Girl
+    KnownVideo("6KnRLJZ0ZRw", 1995),       // Spice Girls - Wannabe
+
+    // 2000s
+    KnownVideo("eBCRc2Zk6hA", 2000),       // OutKast - Hey Ya!
+    KnownVideo("dQ1ribkayAU", 2008),       // Lady Gaga - Poker Face
+    KnownVideo("lp-EO5I60KA", 2009),       // Eminem - Not Afraid
+    KnownVideo("kJQP7kiw5Fk", 2006),       // Luis Miguel - No Me Importa
+
+    // 2010s
+    KnownVideo("9bZkp7q19f0", 2012),       // PSY - Gangnam Style
+    KnownVideo("YQHsXMglC9A", 2015),       // Adele - Hello
+    KnownVideo("OPf0YbXqDm0", 2014),       // Mark Ronson - Uptown Funk
+    KnownVideo("2Vv-BfVoq4g", 2017),       // Ed Sheeran - Perfect
+    KnownVideo("Rl6bfz9xYio", 2023),       // Tate McRae - Greedy
+    KnownVideo("kPa7bsKwL-c", 2023),       // Steve Lacy - Bad Habit
+    KnownVideo("hVlgHmeZjg8", 2021),       // BTS - Butter
+    KnownVideo("ffxKSjUwZdU", 2021),       // Måneskin - Beggin'
+    KnownVideo("QOQZRLdv3s0", 2018),       // The Weeknd - Call Out My Name
+    KnownVideo("uelHwf8o7_U", 2018),       // Lady Gaga, Bradley Cooper - Shallow
+    KnownVideo("Z09lZZd7aJs", 2020),       // Dua Lipa - Physical
+    KnownVideo("nPLV7lGczsE", 2017),       // Dua Lipa - New Rules
+    KnownVideo("GtMSnMlLiwY", 2019),       // Shawn Mendes, Camila Cabello - Señorita
+    KnownVideo("u7K7pXAhK5c", 2015),       // Sam Smith - Stay With Me
+    KnownVideo("bo_efYxQAse", 2018),       // Bruno Mars - Finesse
+    KnownVideo("YVkKvmAVWHE", 2019),       // Billie Eilish - Bad Guy
+    KnownVideo("YBHQbu5FpLk", 2020),       // Dua Lipa - Don't Start Now
+    KnownVideo("1Q9qGcPp3b4", 2021),       // The Weeknd - Save Your Tears
+    KnownVideo("456sX5lPcTQ", 2021),       // Olivia Rodrigo - Drivers License
+    KnownVideo("b4Bj7Zb-YDc", 2021),       // Olivia Rodrigo - Good 4 U
+    KnownVideo("pBk4NYvBMJc", 2022),       // Imagine Dragons - Bones
+    KnownVideo("W0DM0WCb5ac", 2023),       // Miley Cyrus - Flowers
+    KnownVideo("iWzVlFouYwE", 2023),       // Sam Smith, Kim Petras - Unholy
+)
+
+/**
+ * Current list of videos to use (API results or fallback).
+ */
+private var currentVideoList: MutableList<ApiVideo> = mutableListOf()
+
+/**
+ * Fetch videos from InnerTube API and update currentVideoList.
+ * Uses hardcoded list as fallback if API fails.
+ */
+private suspend fun fetchVideosFromApi() {
+    Log.d(TAG, "Fetching videos from InnerTube API...")
+    
+    val apiVideos = try {
+        YouTubeSearchService.searchMusicVideos()
+    } catch (e: Exception) {
+        Log.e(TAG, "API search failed, using fallback list", e)
+        emptyList()
+    }
+    
+    if (apiVideos.isNotEmpty()) {
+        Log.d(TAG, "Successfully fetched ${apiVideos.size} videos from API")
+        currentVideoList.clear()
+        currentVideoList.addAll(apiVideos)
+    } else {
+        Log.w(TAG, "No videos from API, using fallback list (${fallbackVideoList.size} videos)")
+        currentVideoList.clear()
+        currentVideoList.addAll(fallbackVideoList.map { ApiVideo(it.id, it.year, 0, "") })
+    }
+}
 
 class VideoPlayerFragment : Fragment() {
 
@@ -37,73 +131,25 @@ class VideoPlayerFragment : Fragment() {
     private var loadVideoJob: Job? = null
     private var countdownJob: Job? = null
     private var youTubePlayer: YouTubePlayer? = null
-    private var currentVideo: KnownVideo? = null
+    private var currentVideo: ApiVideo? = null
     private var isPlayerReady = false
     private var isVideoLoaded = false
 
-    /**
-     * Clean, curated pool of evergreen music videos with verified release years.
-     * All videos are well-known, stable, and consistently available on YouTube.
-     */
-    private val videoPool = listOf(
-        // 1970s
-        KnownVideo("fJ9rUzIMcZQ", 1975),       // Queen - Bohemian Rhapsody
-        KnownVideo("y-1MIRlojPc", 1977),       // Bee Gees - Stayin' Alive
-        KnownVideo("hHW1oY26kxQ", 1979),       // Donna Summer - Hot Stuff
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-        // 1980s
-        KnownVideo("dQw4w9WgXcQ", 1987),       // Rick Astley - Never Gonna Give You Up
-        KnownVideo("ZbZSe6N_BXs", 1985),       // Madonna - Material Girl
-        KnownVideo("2Z8IUAiIufKN", 1983),      // Michael Jackson - Thriller
-        KnownVideo("djV1KL4Btzw", 1984),       // Duran Duran - Hungry Like the Wolf
-        KnownVideo("rYEDA3JiTEA", 1984),       // A-ha - Take On Me
-        KnownVideo("1w7OgIMMRc4", 1985),       // Guns N' Roses - Sweet Child O' Mine
-        KnownVideo("1G4isv_Fyls", 1985),       // Michael Jackson - Billie Jean
-        KnownVideo("hr0ObGAUDlQ", 1982),       // Blondie - Rapture
+        // Setup UI components
+        setupNextVideoButton()
+        setupYouTubePlayer()
 
-        // 1990s
-        KnownVideo("hcwnL9a61o0", 1999),       // Backstreet Boys - I Want It That Way
-        KnownVideo("tF3iR0rN-8g", 1991),       // Nirvana - Smells Like Teen Spirit
-        KnownVideo("q3zKKtYsEj8", 1994),       // Red Hot Chili Peppers - Give It Away
-        KnownVideo("ZmDBbnMFK70", 1999),       // Spice Girls - Say You'll Be There
-        KnownVideo("YR5W3FKE88Q", 1998),       // Vengaboys - Boom, Boom, Boom!!
-        KnownVideo("fLexgOxsZu0", 1996),       // Spice Girls - Spice Up Your Life
-        KnownVideo("XbGsChTe4go", 1999),       // Aqua - Barbie Girl
-        KnownVideo("6KnRLJZ0ZRw", 1995),       // Spice Girls - Wannabe
+        // Fetch videos from API when fragment is created
+        lifecycleScope.launch {
+            fetchVideosFromApi()
+        }
 
-        // 2000s
-        KnownVideo("eBCRc2Zk6hA", 2000),       // OutKast - Hey Ya!
-        KnownVideo("dQ1ribkayAU", 2008),       // Lady Gaga - Poker Face
-        KnownVideo("lp-EO5I60KA", 2009),       // Eminem - Not Afraid
-        KnownVideo("kJQP7kiw5Fk", 2006),       // Luis Miguel - No Me Importa
-
-        // 2010s
-        KnownVideo("9bZkp7q19f0", 2012),       // PSY - Gangnam Style
-        KnownVideo("YQHsXMglC9A", 2015),       // Adele - Hello
-        KnownVideo("OPf0YbXqDm0", 2014),       // Mark Ronson - Uptown Funk
-        KnownVideo("2Vv-BfVoq4g", 2017),       // Ed Sheeran - Perfect
-        KnownVideo("RgKAFK5djSk", 2015),       // Wiz Khalifa - See You Again
-        KnownVideo("bo_efYxQAse", 2018),       // Bruno Mars - Finesse
-        KnownVideo("YVkKvmAVWHE", 2019),       // Billie Eilish - Bad Guy
-        KnownVideo("TUVJazfQiNU", 2020),       // The Weeknd - Blinding Lights
-        KnownVideo("YBHQbu5FpLk", 2020),       // Dua Lipa - Don't Start Now
-        KnownVideo("1Q9qGcPp3b4", 2021),       // The Weeknd - Save Your Tears
-        KnownVideo("456sX5lPcTQ", 2021),       // Olivia Rodrigo - Drivers License
-        KnownVideo("b4Bj7Zb-YDc", 2021),       // Olivia Rodrigo - Good 4 U
-        KnownVideo("pBk4NYvBMJc", 2022),       // Imagine Dragons - Bones
-        KnownVideo("W0DM0WCb5ac", 2023),       // Miley Cyrus - Flowers
-        KnownVideo("iWzVlFouYwE", 2023),       // Sam Smith, Kim Petras - Unholy
-        KnownVideo("Rl6bfz9xYio", 2023),       // Tate McRae - Greedy
-        KnownVideo("kPa7bsKwL-c", 2023),       // Steve Lacy - Bad Habit
-        KnownVideo("hVlgHmeZjg8", 2021),       // BTS - Butter
-        KnownVideo("ffxKSjUwZdU", 2021),       // Måneskin - Beggin'
-        KnownVideo("QOQZRLdv3s0", 2018),       // The Weeknd - Call Out My Name
-        KnownVideo("uelHwf8o7_U", 2018),       // Lady Gaga, Bradley Cooper - Shallow
-        KnownVideo("Z09lZZd7aJs", 2020),       // Dua Lipa - Physical
-        KnownVideo("nPLV7lGczsE", 2017),       // Dua Lipa - New Rules
-        KnownVideo("GtMSnMlLiwY", 2019),       // Shawn Mendes, Camila Cabello - Señorita
-        KnownVideo("u7K7pXAhK5c", 2015),       // Sam Smith - Stay With Me
-    )
+        // Show loading initially
+        progressBar.visibility = View.VISIBLE
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -120,17 +166,6 @@ class VideoPlayerFragment : Fragment() {
         buttonNextVideo = view.findViewById(R.id.buttonNextVideo)
 
         return view
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        // Setup UI components
-        setupNextVideoButton()
-        setupYouTubePlayer()
-
-        // Show loading initially
-        progressBar.visibility = View.VISIBLE
     }
 
     private fun setupYouTubePlayer() {
@@ -186,7 +221,7 @@ class VideoPlayerFragment : Fragment() {
 
                 // Try another video after a brief delay
                 lifecycleScope.launch {
-                    delay(1500)
+                    delay(1.5.seconds)
                     loadRandomVideo()
                 }
             }
@@ -201,7 +236,7 @@ class VideoPlayerFragment : Fragment() {
     }
 
     private fun loadRandomVideo() {
-        Log.d(TAG, "Loading random video from local pool (${videoPool.size} videos)")
+        Log.d(TAG, "Loading random video from pool (${currentVideoList.size} videos)")
 
         // Show loading indicator
         progressBar.visibility = View.VISIBLE
@@ -213,11 +248,11 @@ class VideoPlayerFragment : Fragment() {
         countdownJob?.cancel()
         loadVideoJob?.cancel()
 
-        // Pick a random video from the local pool
+        // Pick a random video from the pool
         loadVideoJob = lifecycleScope.launch {
             try {
-                val video = videoPool[Random.nextInt(videoPool.size)]
-                Log.d(TAG, "Selected video: ${video.id}, Year: ${video.year}")
+                val video = currentVideoList[Random.nextInt(currentVideoList.size)]
+                Log.d(TAG, "Selected video: ${video.id}, Year: ${video.year}, Views: ${video.views}")
 
                 currentVideo = video
 
@@ -245,7 +280,7 @@ class VideoPlayerFragment : Fragment() {
         countdownJob = lifecycleScope.launch {
             for (i in 3 downTo 1) {
                 textViewCountdown.text = getString(R.string.video_countdown, i)
-                delay(1000)
+                delay(1.seconds)
             }
 
             textViewCountdown.visibility = View.GONE

@@ -1,6 +1,8 @@
 package com.turbolego.songguesser
 
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -41,7 +43,19 @@ class MainActivity : AppCompatActivity() {
         if (savedInstanceState == null) {
             supportFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, VideoPlayerFragment())
+                .addToBackStack(null)
                 .commit()
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            else -> super.onOptionsItemSelected(item)
         }
     }
 }

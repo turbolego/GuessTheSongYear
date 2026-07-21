@@ -9,7 +9,6 @@ gradle/gradle-daemon-jvm.properties
 
 # IDE (Android Studio / IntelliJ)
 .idea/
-*.iml
 misc.xml
 modules.xml
 workspace.xml
