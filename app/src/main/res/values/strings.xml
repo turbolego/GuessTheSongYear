@@ -60,6 +60,8 @@
     <string name="game_full">Spillet er fullt</string>
     <string name="connected_to_host">Koblet til host</string>
     <string name="waiting_for_host">Venter på video fra host…</string>
+    <string name="transport_hint">Velg transportmetode for vertskap</string>
+    <string name="discovered_hosts_label">Oppdagede spillverter:</string>
 
     <!-- Errors -->
     <string name="error_loading_video">Kunne ikke laste video. Prøv en annen.</string>

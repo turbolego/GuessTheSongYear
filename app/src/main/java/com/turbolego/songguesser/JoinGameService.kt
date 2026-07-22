@@ -1,6 +1,9 @@
 package com.turbolego.songguesser
 
 import android.app.Service
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothSocket
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -17,69 +20,68 @@ import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.*
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * Android Service that discovers and joins a WiFi Direct + NSD hosted game session.
+ * Android Service that discovers and joins a hosted game session.
  *
- * Responsibilities:
- * - Discovers nearby game hosts via NSD (Network Service Discovery)
- * - Resolves the discovered service to obtain host details
- * - Initiates a WiFi Direct P2P connection to the host
- * - Opens a TCP socket to the host and exchanges game protocol messages
- * - Dispatches game events via [GameNetworkListener]
- * - Handles reconnection and graceful disconnect
+ * Supports two transports:
+ * - "wifi"  : NSD service discovery + WiFi Direct P2P connection + TCP socket
+ * - "bluetooth" : Bluetooth device discovery + RFCOMM socket connection
+ *
+ * Protocol messages handled:
+ *   JOIN_ACK, PLAYER_LIST, VIDEO, REVEAL, REVEAL_RESULT, GUESS_BLIND,
+ *   PLAYER_LEFT, END
+ *
+ * Key new protocol flow:
+ *   1. Receive VIDEO updates from the host.
+ *   2. Receive REVEAL from host → send GUESS_BLIND with local player's guess.
+ *   3. Receive REVEAL_RESULT with computed scores for all players.
  */
 class JoinGameService : Service() {
 
     // ── Constants ───────────────────────────────────────────────────────────
 
     private val TAG = "JoinGameService"
-    private val SERVICE_TYPE = "_guessgame._tcp"
-    private val CONNECT_TIMEOUT = 15_000
-    private val SOCKET_TIMEOUT = 30_000
-    private val RECONNECT_DELAY = 3_000L
-    private val MAX_RECONNECT_ATTEMPTS = 3
     private val JSON_CHARSET = Charsets.UTF_8
+    private val BT_UUID = UUID.fromString(Protocol.BT_SERVICE_UUID)
 
-    // ── Message Types ───────────────────────────────────────────────────────
+    // ── Companion & static API ──────────────────────────────────────────────
 
     companion object {
-        const val MSG_JOIN = "JOIN"
-        const val MSG_JOIN_ACK = "JOIN_ACK"
-        const val MSG_PLAYER_LIST = "PLAYER_LIST"
-        const val MSG_VIDEO = "VIDEO"
-        const val MSG_TURN = "TURN"
-        const val MSG_GUESS = "GUESS"
-        const val MSG_END = "END"
-        const val MSG_PLAYER_LEFT = "PLAYER_LEFT"
+        @Volatile
+        var instance: JoinGameService? = null
 
         private const val EXTRA_PLAYER_NAME = "player_name"
+        private const val EXTRA_TRANSPORT = "transport"
         private const val EXTRA_HOST_DEVICE_ADDRESS = "host_device_address"
 
         /**
          * Start discovering + joining a game session.
-         * Call [startDiscovery] first, or [joinHost] if you already know the host.
+         * @param transport "wifi" or "bluetooth"
          */
-        fun startDiscovery(context: Context, playerName: String) {
+        fun startDiscovery(context: Context, playerName: String, transport: String = Protocol.TRANSPORT_WIFI) {
             val intent = Intent(context, JoinGameService::class.java).apply {
                 putExtra(EXTRA_PLAYER_NAME, playerName)
+                putExtra(EXTRA_TRANSPORT, transport)
                 action = ACTION_DISCOVER
             }
             context.startService(intent)
         }
 
         /**
-         * Start joining a specific host by WiFi Direct device address.
+         * Start joining a specific host by device address.
+         * For WiFi: the host's WiFi Direct device MAC address.
+         * For Bluetooth: the host's Bluetooth MAC address.
          */
-        fun joinHost(context: Context, playerName: String, hostDeviceAddress: String) {
+        fun joinHost(context: Context, playerName: String, hostDeviceAddress: String, transport: String = Protocol.TRANSPORT_WIFI) {
             val intent = Intent(context, JoinGameService::class.java).apply {
                 putExtra(EXTRA_PLAYER_NAME, playerName)
+                putExtra(EXTRA_TRANSPORT, transport)
                 putExtra(EXTRA_HOST_DEVICE_ADDRESS, hostDeviceAddress)
                 action = ACTION_JOIN_HOST
             }
@@ -96,46 +98,57 @@ class JoinGameService : Service() {
 
     // ── Services & State ────────────────────────────────────────────────────
 
-    private lateinit var wifiP2pManager: WifiP2pManager
+    private var wifiP2pManager: WifiP2pManager? = null
     private var wifiChannel: WifiP2pManager.Channel? = null
-    private lateinit var nsdManager: NsdManager
+    private var nsdManager: NsdManager? = null
+    private var bluetoothAdapter: BluetoothAdapter? = null
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var socketJob: Job? = null
-    private var gameSocket: Socket? = null
+
+    /** Network connection — either a TCP Socket or BluetoothSocket. */
+    private var gameSocket: Any? = null // Socket or BluetoothSocket
     private var writer: BufferedWriter? = null
     private val writeMutex = Mutex()
     private var reconnectAttempts = 0
 
-    /** Player name of the local user. */
     private var playerName: String = ""
+    private var transport: String = Protocol.TRANSPORT_WIFI
 
-    /** Host's WiFi Direct device address (from NSD resolution or direct input). */
+    /** Host's device address (WiFi P2P MAC or Bluetooth MAC). */
     private var hostDeviceAddress: String? = null
 
-    /** Host's IP address within the P2P group. */
+    /** Host's IP address within P2P group (WiFi only). */
     private var hostAddress: java.net.InetAddress? = null
 
-    /** The port the host's game server is listening on. */
-    private var hostPort: Int = 8888
+    /** Host's TCP port (WiFi only). */
+    private var hostPort: Int = Protocol.WIFI_SERVER_PORT
 
-    /** Current host name (display name from the host). */
+    /** Current host display name. */
     private var hostName: String? = null
 
-    /** Session ID assigned by the host. */
+    /** Session ID assigned by host. */
     private var sessionId: String? = null
 
-    /** Whether we have successfully joined a session. */
+    /** Whether we successfully joined a session. */
     private var joined = false
 
     /** External listener for UI-layer events. */
     var networkListener: GameNetworkListener? = null
 
+    /**
+     * The local player's pending guess for the current round.
+     * Set by the UI when the user changes their NumberPicker.
+     * Sent as GUESS_BLIND when REVEAL is received.
+     */
+    var currentPendingGuess: Int = 2000
+
+    // ── WiFi-specific state ─────────────────────────────────────────────────
+
     /** Queue of discovered services (avoid duplicates). */
     private val discoveredServices = ConcurrentLinkedQueue<NsdServiceInfo>()
 
-    // ── NSD Listeners ───────────────────────────────────────────────────────
-
+    /** NSD listeners. */
     private var discoveryListener: NsdManager.DiscoveryListener? = null
     private var resolveListener: NsdManager.ResolveListener? = null
 
@@ -156,56 +169,75 @@ class JoinGameService : Service() {
                         onP2pConnected(p2pInfo)
                     }
                 }
-                WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
-                    // Device info changed — could retry if needed
-                }
+                WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {}
                 WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION -> {
                     val state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
-                    if (state == WifiP2pManager.WIFI_P2P_STATE_ENABLED) {
-                        Log.d(TAG, "WiFi Direct enabled")
-                    } else {
+                    if (state != WifiP2pManager.WIFI_P2P_STATE_ENABLED) {
                         Log.w(TAG, "WiFi Direct disabled")
                         networkListener?.onNetworkError("WiFi Direct is disabled")
                     }
                 }
-                WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
-                    // Peers changed — could trigger discovery
-                }
+                WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {}
             }
         }
     }
 
     private var receiverRegistered = false
 
+    // ── Bluetooth Broadcast Receiver ────────────────────────────────────────
+
+    /**
+     * Receiver for Bluetooth device discovery results.
+     * Only used when transport == "bluetooth".
+     */
+    private val bluetoothDiscoveryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                BluetoothDevice.ACTION_FOUND -> {
+                    val device: BluetoothDevice? =
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                    if (device != null) {
+                        Log.d(TAG, "Bluetooth device found: ${device.name} [${device.address}]")
+                        onBluetoothDeviceFound(device)
+                    }
+                }
+                BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
+                    Log.d(TAG, "Bluetooth discovery finished")
+                }
+            }
+        }
+    }
+
+    private var btDiscoveryReceiverRegistered = false
+
     // ── Lifecycle ───────────────────────────────────────────────────────────
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         Log.d(TAG, "onCreate")
-        wifiP2pManager = getSystemService(WIFI_P2P_SERVICE) as WifiP2pManager
-        nsdManager = getSystemService(NSD_SERVICE) as NsdManager
-        wifiChannel = wifiP2pManager.initialize(this, mainLooper) { /* channel lost */ }
-        registerWifiReceiver()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand")
         playerName = intent?.getStringExtra(EXTRA_PLAYER_NAME) ?: "Player"
+        transport = intent?.getStringExtra(EXTRA_TRANSPORT) ?: Protocol.TRANSPORT_WIFI
 
         when (intent?.action) {
-            ACTION_DISCOVER -> startNsdDiscovery()
+            ACTION_DISCOVER -> startDiscovery()
             ACTION_JOIN_HOST -> {
                 hostDeviceAddress = intent.getStringExtra(EXTRA_HOST_DEVICE_ADDRESS)
                 hostDeviceAddress?.let { address ->
-                    connectToHostP2p(address)
+                    connectToHost(address)
                 } ?: run {
                     Log.e(TAG, "No host device address provided for ACTION_JOIN_HOST")
                     networkListener?.onNetworkError("No host device address provided")
                 }
             }
             else -> {
-                Log.d(TAG, "No action specified, starting NSD discovery by default")
-                startNsdDiscovery()
+                Log.d(TAG, "No action specified, starting discovery by default")
+                startDiscovery()
             }
         }
 
@@ -214,34 +246,45 @@ class JoinGameService : Service() {
 
     override fun onDestroy() {
         Log.d(TAG, "onDestroy")
+        instance = null
         shutdown()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // ── NSD Discovery ───────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // DISCOVERY
+    // ══════════════════════════════════════════════════════════════════════════
 
-    /**
-     * Start discovering game hosts via NSD.
-     */
-    private fun startNsdDiscovery() {
-        Log.d(TAG, "Starting NSD discovery for $SERVICE_TYPE")
+    private fun startDiscovery() {
+        when (transport) {
+            Protocol.TRANSPORT_BLUETOOTH -> startBluetoothDiscovery()
+            else -> startWifiDiscovery()
+        }
+    }
+
+    // ── Wi-Fi NSD Discovery ─────────────────────────────────────────────────
+
+    private fun startWifiDiscovery() {
+        Log.d(TAG, "Starting Wi-Fi NSD discovery")
+        wifiP2pManager = getSystemService(WIFI_P2P_SERVICE) as WifiP2pManager
+        nsdManager = getSystemService(NSD_SERVICE) as NsdManager
+        wifiChannel = wifiP2pManager?.initialize(this, mainLooper) { /* channel lost */ }
+        registerWifiReceiver()
         discoveredServices.clear()
 
-        val discoveryListener = object : NsdManager.DiscoveryListener {
+        val discListener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {
                 Log.d(TAG, "NSD discovery started: $regType")
             }
 
             override fun onServiceFound(service: NsdServiceInfo) {
                 Log.d(TAG, "NSD service found: ${service.serviceName} (${service.serviceType})")
-                // Filter for our service type
-                if (service.serviceType == SERVICE_TYPE) {
+                if (service.serviceType == Protocol.WIFI_SERVICE_TYPE) {
                     if (!discoveredServices.contains(service)) {
                         discoveredServices.add(service)
-                        // Automatically resolve the first discovered service
-                        resolveService(service)
+                        resolveWifiService(service)
                     }
                 }
             }
@@ -264,35 +307,35 @@ class JoinGameService : Service() {
                 Log.e(TAG, "NSD stop discovery failed: errorCode=$errorCode")
             }
         }
-        this.discoveryListener = discoveryListener
+        this.discoveryListener = discListener
 
         try {
-            nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+            nsdManager?.discoverServices(
+                Protocol.WIFI_SERVICE_TYPE,
+                NsdManager.PROTOCOL_DNS_SD,
+                discListener
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start NSD discovery", e)
             networkListener?.onNetworkError("Failed to discover game sessions: ${e.message}")
         }
     }
 
-    // ── NSD Service Resolution ──────────────────────────────────────────────
-
-    private fun resolveService(service: NsdServiceInfo) {
-        val resolveListener = object : NsdManager.ResolveListener {
+    private fun resolveWifiService(service: NsdServiceInfo) {
+        val resListener = object : NsdManager.ResolveListener {
             override fun onResolveFailed(service: NsdServiceInfo, errorCode: Int) {
                 Log.e(TAG, "NSD resolve failed: ${service.serviceName}, errorCode=$errorCode")
             }
 
             override fun onServiceResolved(service: NsdServiceInfo) {
                 Log.d(TAG, "NSD service resolved: ${service.serviceName}")
-                Log.d(TAG, "  Host: ${service.host?.hostAddress}")
-                Log.d(TAG, "  Port: ${service.port}")
+                Log.d(TAG, "  Host: ${service.host?.hostAddress}, Port: ${service.port}")
 
-                // Extract metadata from TXT records
                 hostName = service.serviceName
                 hostAddress = service.host
                 hostPort = service.port
 
-                // Extract host device address from attributes if available
+                // Extract TXT records
                 val txtMap = HashMap<String, String>()
                 try {
                     val attributes = service.attributes
@@ -302,52 +345,44 @@ class JoinGameService : Service() {
                         }
                     }
                 } catch (_: Exception) {}
-                hostDeviceAddress = txtMap["deviceAddress"]
 
+                hostDeviceAddress = txtMap["deviceAddress"]
                 networkListener?.onServiceRegistered(service.serviceName)
 
-                // Initiate WiFi Direct connection to the host
+                // Initiate WiFi Direct connection
                 if (hostDeviceAddress != null) {
-                    connectToHostP2p(hostDeviceAddress!!)
+                    connectToWifiHostP2p(hostDeviceAddress!!)
                 } else {
-                    // If we don't have the device address, try direct socket
-                    // This works if already on the same P2P network
-                    Log.d(TAG, "No device address in TXT records, trying direct socket")
+                    Log.d(TAG, "No device address in TXT, trying direct socket")
                     serviceScope.launch {
-                        connectSocket()
+                        connectWifiSocket()
                     }
                 }
             }
         }
-        this.resolveListener = resolveListener
+        this.resolveListener = resListener
 
         try {
-            nsdManager.resolveService(service, resolveListener)
+            nsdManager?.resolveService(service, resListener)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to resolve NSD service", e)
         }
     }
 
-    // ── WiFi Direct Connection ──────────────────────────────────────────────
-
-    /**
-     * Initiate a WiFi Direct P2P connection to the host device.
-     * When the connection is established, [onP2pConnected] is called via the broadcast receiver.
-     */
-    private fun connectToHostP2p(hostDeviceAddress: String) {
+    private fun connectToWifiHostP2p(hostDeviceAddress: String) {
         Log.d(TAG, "Initiating P2P connection to device: $hostDeviceAddress")
         val ch = wifiChannel ?: run {
-            Log.e(TAG, "WiFi channel is null, cannot connect")
+            Log.e(TAG, "WiFi channel is null")
             networkListener?.onNetworkError("WiFi Direct channel not available")
             return
         }
 
         val config = WifiP2pConfig().apply {
-            this.deviceAddress = deviceAddress
+            deviceAddress = hostDeviceAddress
             groupOwnerIntent = 0 // We want the other device to be GO
         }
 
-        wifiP2pManager.connect(ch, config, object : WifiP2pManager.ActionListener {
+        wifiP2pManager?.connect(ch, config, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
                 Log.d(TAG, "P2P connection request sent successfully")
             }
@@ -361,29 +396,111 @@ class JoinGameService : Service() {
         })
     }
 
-    /**
-     * Called when the broadcast receiver detects that the P2P connection is established.
-     */
     private fun onP2pConnected(p2pInfo: WifiP2pInfo) {
         Log.d(TAG, "P2P connected. Group owner: ${p2pInfo.groupOwnerAddress?.hostAddress}")
-        Log.d(TAG, "isGroupOwner: ${p2pInfo.isGroupOwner}")
 
         if (p2pInfo.groupFormed && p2pInfo.groupOwnerAddress != null) {
             hostAddress = p2pInfo.groupOwnerAddress
             Log.d(TAG, "Host address from P2P info: ${hostAddress?.hostAddress}")
-            // Open the game socket
             serviceScope.launch {
-                connectSocket()
+                connectWifiSocket()
             }
         }
     }
 
-    // ── Socket Connection ───────────────────────────────────────────────────
+    private fun registerWifiReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
+            addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
+            addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
+            addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
+        }
+        @Suppress("DEPRECATION")
+        registerReceiver(wifiDirectReceiver, filter, RECEIVER_EXPORTED)
+        receiverRegistered = true
+    }
 
-    /**
-     * Open a TCP socket to the game host and start the game protocol exchange.
-     */
-    private suspend fun connectSocket() {
+    // ── Bluetooth Discovery ─────────────────────────────────────────────────
+
+    @Suppress("MissingPermission")
+    private fun startBluetoothDiscovery() {
+        Log.d(TAG, "Starting Bluetooth device discovery")
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        if (bluetoothAdapter == null) {
+            networkListener?.onNetworkError("Bluetooth is not supported on this device")
+            return
+        }
+        if (!bluetoothAdapter!!.isEnabled) {
+            networkListener?.onNetworkError("Bluetooth is not enabled")
+            return
+        }
+
+        // Register for BT discovery results
+        val filter = IntentFilter().apply {
+            addAction(BluetoothDevice.ACTION_FOUND)
+            addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
+        }
+        registerReceiver(bluetoothDiscoveryReceiver, filter, RECEIVER_EXPORTED)
+        btDiscoveryReceiverRegistered = true
+
+        // First, try paired devices that might be running the game
+        val bondedDevices = bluetoothAdapter!!.bondedDevices
+        if (bondedDevices != null) {
+            for (device in bondedDevices) {
+                Log.d(TAG, "Checking paired device: ${device.name} [${device.address}]")
+                // Attempt connection to each paired device
+                onBluetoothDeviceFound(device)
+            }
+        }
+
+        // Start discovery for unpaired devices
+        bluetoothAdapter!!.startDiscovery()
+        Log.d(TAG, "Bluetooth discovery started")
+    }
+
+    @Suppress("MissingPermission")
+    private fun onBluetoothDeviceFound(device: BluetoothDevice) {
+        // Try connecting via RFCOMM using the game UUID
+        Log.d(TAG, "Attempting Bluetooth connection to ${device.name} [${device.address}]")
+        networkListener?.onServiceRegistered(device.name ?: device.address)
+
+        serviceScope.launch {
+            connectBluetoothSocket(device)
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // CONNECT TO HOST (shared entry for ACTION_JOIN_HOST)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun connectToHost(deviceAddress: String) {
+        when (transport) {
+            Protocol.TRANSPORT_BLUETOOTH -> {
+                bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+                if (bluetoothAdapter == null) {
+                    networkListener?.onNetworkError("Bluetooth not supported")
+                    return
+                }
+                val device = bluetoothAdapter!!.getRemoteDevice(deviceAddress)
+                serviceScope.launch {
+                    connectBluetoothSocket(device)
+                }
+            }
+            else -> {
+                wifiP2pManager = getSystemService(WIFI_P2P_SERVICE) as WifiP2pManager
+                wifiChannel = wifiP2pManager?.initialize(this, mainLooper) { }
+                registerWifiReceiver()
+                connectToWifiHostP2p(deviceAddress)
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SOCKET CONNECTION
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /** Connect a TCP socket to the WiFi host. */
+    private suspend fun connectWifiSocket() {
         val host = hostAddress ?: run {
             Log.e(TAG, "No host address available")
             networkListener?.onNetworkError("No host address to connect to")
@@ -393,25 +510,27 @@ class JoinGameService : Service() {
         socketJob?.cancel()
         socketJob = serviceScope.launch {
             try {
-                Log.d(TAG, "Connecting socket to ${host.hostAddress}:$hostPort")
+                Log.d(TAG, "Connecting TCP socket to ${host.hostAddress}:$hostPort")
                 val socket = Socket()
-                socket.connect(InetSocketAddress(host, hostPort), CONNECT_TIMEOUT)
-                socket.soTimeout = SOCKET_TIMEOUT
+                socket.connect(
+                    InetSocketAddress(host, hostPort),
+                    Protocol.CONNECT_TIMEOUT_MS
+                )
+                socket.soTimeout = Protocol.SOCKET_TIMEOUT_MS
                 gameSocket = socket
 
-                writer = BufferedWriter(OutputStreamWriter(socket.getOutputStream(), JSON_CHARSET))
-                val reader = BufferedReader(InputStreamReader(socket.getInputStream(), JSON_CHARSET))
+                writer = BufferedWriter(
+                    OutputStreamWriter(socket.getOutputStream(), JSON_CHARSET)
+                )
+                val reader = BufferedReader(
+                    InputStreamReader(socket.getInputStream(), JSON_CHARSET)
+                )
 
-                // Reset reconnect counter on successful connection
                 reconnectAttempts = 0
-
-                // Send JOIN message
                 sendJoin()
-
-                // Enter read loop for game messages
                 readLoop(reader)
             } catch (e: IOException) {
-                Log.e(TAG, "Socket connection failed", e)
+                Log.e(TAG, "TCP socket connection failed", e)
                 networkListener?.onNetworkError("Connection to host failed: ${e.message}")
                 attemptReconnect()
             } catch (e: Exception) {
@@ -421,7 +540,48 @@ class JoinGameService : Service() {
         }
     }
 
-    // ── Read Loop ───────────────────────────────────────────────────────────
+    /** Connect a Bluetooth RFCOMM socket to the host device. */
+    @Suppress("MissingPermission")
+    private suspend fun connectBluetoothSocket(device: BluetoothDevice) {
+        socketJob?.cancel()
+        socketJob = serviceScope.launch {
+            try {
+                Log.d(TAG, "Connecting Bluetooth RFCOMM to ${device.name} [${device.address}]")
+                val btSocket: BluetoothSocket =
+                    device.createRfcommSocketToServiceRecord(BT_UUID)
+
+                // Cancel BT discovery before connecting (faster connection)
+                bluetoothAdapter?.cancelDiscovery()
+
+                btSocket.connect()
+                Log.d(TAG, "Bluetooth socket connected to ${device.name}")
+                gameSocket = btSocket
+
+                writer = BufferedWriter(
+                    OutputStreamWriter(btSocket.outputStream, JSON_CHARSET)
+                )
+                val reader = BufferedReader(
+                    InputStreamReader(btSocket.inputStream, JSON_CHARSET)
+                )
+
+                reconnectAttempts = 0
+                hostName = device.name
+                sendJoin()
+                readLoop(reader)
+            } catch (e: IOException) {
+                Log.e(TAG, "Bluetooth connection failed", e)
+                // Don't report network error for each failed BT attempt during discovery —
+                // just log it. Many devices won't be running the game.
+                Log.d(TAG, "Bluetooth connection rejected by ${device.name}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Bluetooth socket error", e)
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // READ LOOP
+    // ══════════════════════════════════════════════════════════════════════════
 
     private suspend fun readLoop(reader: BufferedReader) {
         try {
@@ -449,60 +609,59 @@ class JoinGameService : Service() {
         }
     }
 
-    // ── Message Dispatch ────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // MESSAGE DISPATCH
+    // ══════════════════════════════════════════════════════════════════════════
 
     private fun dispatchMessage(json: String) {
-        val msg = try {
-            JSONObject(json)
-        } catch (e: Exception) {
+        val msg = Protocol.tryParse(json) ?: run {
             Log.w(TAG, "Invalid JSON from host: $json")
             return
         }
 
-        val type = msg.optString("type")
+        val type = msg.optString(Protocol.FIELD_TYPE)
         Log.d(TAG, "Received message type=$type")
 
         when (type) {
-            MSG_JOIN_ACK -> handleJoinAck(msg)
-            MSG_PLAYER_LIST -> handlePlayerList(msg)
-            MSG_VIDEO -> handleVideo(msg)
-            MSG_TURN -> handleTurn(msg)
-            MSG_GUESS -> handleGuess(msg)
-            MSG_END -> handleEnd(msg)
-            MSG_PLAYER_LEFT -> handlePlayerLeft(msg)
+            Protocol.MSG_JOIN_ACK -> handleJoinAck(msg)
+            Protocol.MSG_PLAYER_LIST -> handlePlayerList(msg)
+            Protocol.MSG_VIDEO -> handleVideo(msg)
+            Protocol.MSG_REVEAL -> handleReveal(msg)
+            Protocol.MSG_REVEAL_RESULT -> handleRevealResult(msg)
+            Protocol.MSG_END -> handleEnd(msg)
+            Protocol.MSG_PLAYER_LEFT -> handlePlayerLeft(msg)
             else -> Log.w(TAG, "Unknown message type: $type")
         }
     }
 
     // ── Message Handlers ────────────────────────────────────────────────────
 
-    private fun handleJoinAck(msg: JSONObject) {
-        sessionId = msg.optString("sessionId")
-        hostName = msg.optString("hostName", "Host")
+    private fun handleJoinAck(msg: org.json.JSONObject) {
+        sessionId = msg.optString(Protocol.FIELD_SESSION_ID)
+        hostName = msg.optString(Protocol.FIELD_HOST_NAME, "Host")
         joined = true
 
         Log.d(TAG, "Joined session: $sessionId (host: $hostName)")
 
-        // Build the GameSession from the join ack data
         val gameSession = GameSessionManager.GameSession(
             sessionId = sessionId ?: "",
             hostName = hostName ?: "",
             players = mutableMapOf(),
-            currentVideoId = msg.optString("currentVideoId", null),
-            currentYear = if (msg.has("currentYear")) msg.optInt("currentYear") else null,
-            currentTitle = msg.optString("currentTitle", null),
-            currentPlayerIndex = msg.optInt("currentPlayerIndex", 0),
+            currentVideoId = msg.optString(Protocol.FIELD_CURRENT_VIDEO_ID, null),
+            currentYear = if (msg.has(Protocol.FIELD_CURRENT_YEAR))
+                msg.optInt(Protocol.FIELD_CURRENT_YEAR) else null,
+            currentTitle = msg.optString(Protocol.FIELD_CURRENT_TITLE, null),
+            currentPlayerIndex = msg.optInt(Protocol.FIELD_CURRENT_PLAYER_INDEX, 0),
             isHost = false
         )
 
-        // Populate players from the players JSON array
-        val playersArray = msg.optJSONArray("players")
+        val playersArray = msg.optJSONArray(Protocol.FIELD_PLAYERS)
         if (playersArray != null) {
             for (i in 0 until playersArray.length()) {
                 val playerObj = playersArray.getJSONObject(i)
-                val pName = playerObj.optString("name", "Unknown")
-                val pScore = playerObj.optInt("score", 0)
-                val pIsHost = playerObj.optBoolean("isHost", false)
+                val pName = playerObj.optString(Protocol.FIELD_NAME, "Unknown")
+                val pScore = playerObj.optInt(Protocol.FIELD_SCORE, 0)
+                val pIsHost = playerObj.optBoolean(Protocol.FIELD_IS_HOST, false)
                 gameSession.players[pName] = GameSessionManager.GameSession.PlayerInfo(
                     name = pName,
                     score = pScore,
@@ -514,44 +673,73 @@ class JoinGameService : Service() {
         networkListener?.onJoinedSession(gameSession)
     }
 
-    private fun handlePlayerList(msg: JSONObject) {
-        val playersArray = msg.optJSONArray("players")
-        val currentPlayer = msg.optString("currentPlayer", "")
-        Log.d(TAG, "Player list updated, current player: $currentPlayer")
+    private fun handlePlayerList(msg: org.json.JSONObject) {
+        val playersArray = msg.optJSONArray(Protocol.FIELD_PLAYERS)
+        Log.d(TAG, "Player list updated")
         if (playersArray != null) {
             for (i in 0 until playersArray.length()) {
                 val playerObj = playersArray.getJSONObject(i)
-                Log.d(TAG, "  ${playerObj.optString("name")}: ${playerObj.optInt("score")}")
+                Log.d(TAG, "  ${playerObj.optString(Protocol.FIELD_NAME)}: " +
+                        "${playerObj.optInt(Protocol.FIELD_SCORE)}")
             }
         }
     }
 
-    private fun handleVideo(msg: JSONObject) {
-        val videoId = msg.optString("id", "")
-        val year = msg.optInt("year", 0)
-        val title = msg.optString("title", "")
+    private fun handleVideo(msg: org.json.JSONObject) {
+        val videoId = msg.optString(Protocol.FIELD_VIDEO_ID, "")
+        val year = msg.optInt(Protocol.FIELD_YEAR, 0)
+        val title = msg.optString(Protocol.FIELD_TITLE, "")
 
         Log.d(TAG, "Video update: $title ($year) id=$videoId")
         networkListener?.onVideoReceived(videoId, year, title)
     }
 
-    private fun handleTurn(msg: JSONObject) {
-        val player = msg.optString("player", "")
-        Log.d(TAG, "Turn changed to: $player")
-        networkListener?.onTurnReceived(player)
+    /**
+     * Handle REVEAL from host.
+     * The host has pressed "Vis svar" — send our blind guess back immediately.
+     */
+    private fun handleReveal(msg: org.json.JSONObject) {
+        Log.d(TAG, "REVEAL received from host — sending GUESS_BLIND")
+        networkListener?.onRevealReceived()
+
+        // Automatically submit the pending guess
+        serviceScope.launch {
+            sendGuessBlind(currentPendingGuess)
+        }
     }
 
-    private fun handleGuess(msg: JSONObject) {
-        val player = msg.optString("player", "")
-        val guess = msg.optInt("guess", 0)
-        val correctYear = msg.optInt("correctYear", 0)
-        val score = msg.optInt("score", 0)
+    /**
+     * Handle REVEAL_RESULT from host.
+     * Contains computed scores and leaderboard for all players.
+     */
+    private fun handleRevealResult(msg: org.json.JSONObject) {
+        val correctYear = msg.optInt(Protocol.FIELD_CORRECT_YEAR, 0)
 
-        Log.d(TAG, "Guess from $player: $guess (correct=$correctYear, score=$score)")
-        networkListener?.onGuessReceived(player, guess, correctYear, score)
+        // Parse individual results
+        val results = mutableListOf<GameSessionManager.RevealResult>()
+        val resultsArray = msg.optJSONArray(Protocol.FIELD_RESULTS)
+        if (resultsArray != null) {
+            for (i in 0 until resultsArray.length()) {
+                val r = resultsArray.getJSONObject(i)
+                results.add(
+                    GameSessionManager.RevealResult(
+                        playerName = r.optString(Protocol.FIELD_PLAYER, ""),
+                        guess = r.optInt(Protocol.FIELD_GUESS, 0),
+                        correctYear = r.optInt(Protocol.FIELD_CORRECT_YEAR, correctYear),
+                        pointsEarned = r.optInt(Protocol.FIELD_POINTS_EARNED, 0),
+                        difference = r.optInt(Protocol.FIELD_DIFFERENCE, 0),
+                        isCorrect = r.optBoolean(Protocol.FIELD_IS_CORRECT, false),
+                        totalScore = r.optInt(Protocol.FIELD_SCORE, 0)
+                    )
+                )
+            }
+        }
+
+        Log.d(TAG, "REVEAL_RESULT received: ${results.size} players")
+        networkListener?.onRevealResultReceived(results)
     }
 
-    private fun handleEnd(msg: JSONObject) {
+    private fun handleEnd(msg: org.json.JSONObject) {
         Log.d(TAG, "Game ended by host")
         joined = false
         networkListener?.onSessionEnded()
@@ -561,38 +749,42 @@ class JoinGameService : Service() {
         }
     }
 
-    private fun handlePlayerLeft(msg: JSONObject) {
-        val player = msg.optString("player", "")
+    private fun handlePlayerLeft(msg: org.json.JSONObject) {
+        val player = msg.optString(Protocol.FIELD_PLAYER, "")
         Log.d(TAG, "Player left: $player")
         networkListener?.onPlayerDisconnected(player)
     }
 
-    // ── Outgoing Messages ───────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // OUTGOING MESSAGES
+    // ══════════════════════════════════════════════════════════════════════════
 
     /** Send the JOIN message to the host. */
     private suspend fun sendJoin() {
-        val payload = JSONObject().apply {
-            put("type", MSG_JOIN)
-            put("player", playerName)
+        val payload = Protocol.buildJson {
+            put(Protocol.FIELD_TYPE, Protocol.MSG_JOIN)
+            put(Protocol.FIELD_PLAYER, playerName)
         }
         sendMessage(payload.toString())
     }
 
     /**
-     * Send a GUESS message to the host.
-     * Called when the local player submits a year guess.
+     * Send a GUESS_BLIND message to the host.
+     * This is called automatically when REVEAL is received,
+     * and can also be called from the UI directly.
      */
-    suspend fun sendGuess(guess: Int) {
+    suspend fun sendGuessBlind(guess: Int) {
         if (!joined) {
-            Log.w(TAG, "Cannot send guess: not joined to a session")
+            Log.w(TAG, "Cannot send GUESS_BLIND: not joined to a session")
             return
         }
-        val payload = JSONObject().apply {
-            put("type", MSG_GUESS)
-            put("player", playerName)
-            put("guess", guess)
+        val payload = Protocol.buildJson {
+            put(Protocol.FIELD_TYPE, Protocol.MSG_GUESS_BLIND)
+            put(Protocol.FIELD_PLAYER, playerName)
+            put(Protocol.FIELD_GUESS, guess)
         }
         sendMessage(payload.toString())
+        Log.d(TAG, "GUESS_BLIND sent: $guess")
     }
 
     /**
@@ -600,9 +792,9 @@ class JoinGameService : Service() {
      */
     suspend fun sendLeave() {
         if (!joined) return
-        val payload = JSONObject().apply {
-            put("type", MSG_END)
-            put("player", playerName)
+        val payload = Protocol.buildJson {
+            put(Protocol.FIELD_TYPE, Protocol.MSG_END)
+            put(Protocol.FIELD_PLAYER, playerName)
         }
         sendMessage(payload.toString())
         joined = false
@@ -625,42 +817,45 @@ class JoinGameService : Service() {
         }
     }
 
-    // ── Reconnection ────────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // RECONNECTION
+    // ══════════════════════════════════════════════════════════════════════════
 
     private fun attemptReconnect() {
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS || joined) return
+        if (reconnectAttempts >= Protocol.MAX_RECONNECT_ATTEMPTS || joined) return
         reconnectAttempts++
-        Log.d(TAG, "Reconnection attempt $reconnectAttempts/$MAX_RECONNECT_ATTEMPTS")
+        Log.d(TAG, "Reconnection attempt $reconnectAttempts/${Protocol.MAX_RECONNECT_ATTEMPTS}")
         serviceScope.launch {
-            delay(RECONNECT_DELAY)
-            connectSocket()
+            delay(Protocol.RECONNECT_DELAY_MS)
+            when (transport) {
+                Protocol.TRANSPORT_BLUETOOTH -> {
+                    // Bluetooth reconnect isn't straightforward without re-discovery
+                    networkListener?.onNetworkError("Bluetooth connection lost")
+                }
+                else -> connectWifiSocket()
+            }
         }
     }
 
-    // ── Utilities ───────────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // SHUTDOWN
+    // ══════════════════════════════════════════════════════════════════════════
 
     private fun disconnectSocket() {
         try {
             writer?.close()
         } catch (_: IOException) {}
         writer = null
-        try {
-            gameSocket?.close()
-        } catch (_: IOException) {}
-        gameSocket = null
-    }
 
-    private fun registerWifiReceiver() {
-        val filter = IntentFilter().apply {
-            addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
-            addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
-            addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
-            addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
+        when (val sock = gameSocket) {
+            is Socket -> {
+                try { sock.close() } catch (_: IOException) {}
+            }
+            is BluetoothSocket -> {
+                try { sock.close() } catch (_: IOException) {}
+            }
         }
-        // Register with RECEIVER_EXPORTED flag for API 34+
-        @Suppress("DEPRECATION")
-        registerReceiver(wifiDirectReceiver, filter, RECEIVER_EXPORTED)
-        receiverRegistered = true
+        gameSocket = null
     }
 
     private fun shutdown() {
@@ -669,22 +864,33 @@ class JoinGameService : Service() {
         socketJob = null
         disconnectSocket()
 
-        // Stop NSD discovery
-        try {
-            discoveryListener?.let { nsdManager.stopServiceDiscovery(it) }
-        } catch (_: Exception) {}
-        discoveryListener = null
-        resolveListener = null
+        if (transport == Protocol.TRANSPORT_WIFI) {
+            // Stop NSD discovery
+            try {
+                discoveryListener?.let { nsdManager?.stopServiceDiscovery(it) }
+            } catch (_: Exception) {}
+            discoveryListener = null
+            resolveListener = null
 
-        // Disconnect P2P
-        try {
-            wifiChannel?.let { wifiP2pManager.removeGroup(it, null) }
-        } catch (_: Exception) {}
+            // Disconnect P2P
+            try {
+                wifiChannel?.let { wifiP2pManager?.removeGroup(it, null) }
+            } catch (_: Exception) {}
 
-        // Unregister receiver
-        if (receiverRegistered) {
-            try { unregisterReceiver(wifiDirectReceiver) } catch (_: Exception) {}
-            receiverRegistered = false
+            // Unregister receiver
+            if (receiverRegistered) {
+                try { unregisterReceiver(wifiDirectReceiver) } catch (_: Exception) {}
+                receiverRegistered = false
+            }
+        } else {
+            // Bluetooth cleanup
+            try {
+                bluetoothAdapter?.cancelDiscovery()
+            } catch (_: Exception) {}
+            if (btDiscoveryReceiverRegistered) {
+                try { unregisterReceiver(bluetoothDiscoveryReceiver) } catch (_: Exception) {}
+                btDiscoveryReceiverRegistered = false
+            }
         }
 
         serviceScope.cancel()

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface"
+    android:padding="16dp">
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/textViewHostTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/host_game_title"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="@color/amber_accent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Host name input -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/textInputLayoutHostName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:hint="@string/player_name_hint"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewHostTitle">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editTextHostName"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:inputType="text"
+            android:maxLines="1"
+            android:text="Vert"
+            android:textColor="@color/body_text"
+            android:textColorHint="@color/muted_text" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Transport selection buttons -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonHostWifi"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="12dp"
+        android:text="Host via WiFi"
+        app:layout_constraintEnd_toStartOf="@+id/buttonHostBluetooth"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textInputLayoutHostName" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonHostBluetooth"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="8dp"
+        android:text="Host via Bluetooth"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/buttonHostWifi"
+        app:layout_constraintTop_toTopOf="@+id/buttonHostWifi" />
+
+    <!-- Transport hint -->
+    <TextView
+        android:id="@+id/textViewTransportHint"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/transport_hint"
+        android:textSize="12sp"
+        android:textColor="@color/muted_text"
+        android:gravity="center"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/buttonHostWifi" />
+
+    <!-- Status + Progress bar -->
+    <TextView
+        android:id="@+id/textViewHostStatus"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="@string/host_started"
+        android:textSize="16sp"
+        android:textColor="@color/body_text"
+        android:gravity="center"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewTransportHint"
+        tools:visibility="visible" />
+
+    <ProgressBar
+        android:id="@+id/progressBarHost"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewHostStatus"
+        tools:visibility="visible" />
+
+    <!-- Joined players label -->
+    <TextView
+        android:id="@+id/textViewPlayersLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/players_label"
+        android:textSize="14sp"
+        android:textColor="@color/muted_text"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/progressBarHost"
+        tools:visibility="visible" />
+
+    <!-- RecyclerView for joined players -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewJoinedPlayers"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="4dp"
+        android:overScrollMode="never"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@+id/buttonStartGame"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewPlayersLabel"
+        tools:visibility="visible"
+        tools:listitem="@layout/item_player_row" />
+
+    <!-- Start game button (hidden until >=2 players) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonStartGame"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="16dp"
+        android:text="@string/start_game"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        tools:visibility="visible" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

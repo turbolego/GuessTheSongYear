@@ -173,6 +173,15 @@ class VideoPlayerFragment : Fragment() {
     private var mpRevealed = false  // true once "Vis svar" has been pressed for this round
     private var playerAdapter: PlayerGuessAdapter? = null
 
+    /** Whether the "Vis svar" button should be shown (host = true, client = false). */
+    private var showReveal: Boolean = true
+
+    /** True if this device is hosting a network game. */
+    private val isNetworkHost: Boolean get() = HostGameService.instance != null
+
+    /** True if this device is a remote client in a network game. */
+    private val isNetworkClient: Boolean get() = JoinGameService.instance != null && !isNetworkHost
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let { args ->
@@ -183,6 +192,7 @@ class VideoPlayerFragment : Fragment() {
                 MultiPlayerManager.clear()
                 names.forEach { if (it.isNotBlank()) MultiPlayerManager.addPlayer(it) }
             }
+            showReveal = args.getBoolean(ARG_SHOW_REVEAL, true)
         }
     }
 
@@ -201,7 +211,12 @@ class VideoPlayerFragment : Fragment() {
 
         if (isMultiplayer) setupMultiplayerUI()
 
-        lifecycleScope.launch { fetchVideosFromApi() }
+        if (isNetworkClient) {
+            // Client mode: register listener, no API fetching (video from host)
+            setupClientNetworkListener()
+        } else {
+            lifecycleScope.launch { fetchVideosFromApi() }
+        }
 
         if (!isMultiplayer) updateScoreDisplay()
         binding.progressBar.visibility = View.VISIBLE
@@ -324,8 +339,8 @@ class VideoPlayerFragment : Fragment() {
         binding.buttonToggleVideo.visibility = View.VISIBLE
         binding.textViewLeaderboard.visibility = View.VISIBLE
 
-        // Show reveal button
-        binding.buttonRevealAnswers.visibility = View.VISIBLE
+        // Show reveal button (only for host)
+        binding.buttonRevealAnswers.visibility = if (showReveal) View.VISIBLE else View.GONE
 
         // Build RecyclerView with NumberPickers
         val rows = mpPlayerNames.map { PlayerGuessRow(playerName = it) }.toMutableList()
@@ -349,7 +364,28 @@ class VideoPlayerFragment : Fragment() {
         val video = currentVideo
         val adapter = playerAdapter ?: return
 
-        // Collect all guesses from rows and record them
+        // Collect host's local guesses
+        val localGuesses = mutableMapOf<String, Int>()
+        for (row in adapter.rows) {
+            localGuesses[row.playerName] = row.selectedYear
+        }
+
+        // If hosting a network game, sync with remote clients
+        if (isNetworkHost) {
+            lifecycleScope.launch {
+                HostGameService.instance?.triggerReveal(localGuesses)
+                // After triggerReveal returns, results are stored in GameSessionManager
+                // Update local display with all results including remote players
+                computeAndDisplayResults()
+            }
+        } else {
+            computeAndDisplayResults()
+        }
+    }
+
+    private fun computeAndDisplayResults() {
+        val video = currentVideo ?: return
+        val adapter = playerAdapter ?: return
         val results = mutableListOf<Pair<String, ResultDisplay>>()
 
         for ((i, row) in adapter.rows.withIndex()) {
@@ -380,6 +416,82 @@ class VideoPlayerFragment : Fragment() {
         binding.buttonNextVideo.text = "${video!!.year} — ${getString(R.string.next_video)}"
         binding.buttonNextVideo.visibility = View.VISIBLE
         binding.textViewSongYear.visibility = View.GONE
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NETWORK CLIENT MODE
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private fun setupClientNetworkListener() {
+        val joinService = JoinGameService.instance ?: return
+        joinService.networkListener = object : GameNetworkListener {
+            override fun onHostingStarted(sessionId: String, hostName: String) {}
+            override fun onServiceRegistered(serviceName: String) {}
+            override fun onJoinedSession(session: GameSessionManager.GameSession) {}
+            override fun onPlayerJoined(playerName: String, clientIp: String) {}
+            override fun onPlayerDisconnected(playerName: String) {}
+            override fun onTurnReceived(playerName: String) {}
+            override fun onGuessReceived(playerName: String, guess: Int, correctYear: Int, score: Int) {}
+            override fun onSessionEnded() {
+                requireActivity().runOnUiThread {
+                    Toast.makeText(requireContext(), "Spillet er slutt", Toast.LENGTH_LONG).show()
+                }
+            }
+            override fun onNetworkError(error: String) {
+                Log.w(TAG, "Network error (client): $error")
+            }
+
+            override fun onVideoReceived(videoId: String, year: Int, title: String) {
+                Log.d(TAG, "Client received VIDEO: $videoId ($year - $title)")
+                requireActivity().runOnUiThread {
+                    // Create a candidate from the host's broadcast
+                    val candidate = ApiVideo(id = videoId, year = year, views = 0L, title = title)
+                    currentVideo = candidate
+                    playedVideoIds.add(videoId)
+                    if (isPlayerReady) {
+                        beginCountdown(videoId)
+                    }
+                }
+            }
+
+            override fun onRevealReceived() {
+                Log.d(TAG, "Client received REVEAL — sending blind guess")
+                val adapter = playerAdapter
+                if (adapter != null && adapter.rows.isNotEmpty()) {
+                    val myGuess = adapter.rows[0].selectedYear
+                    lifecycleScope.launch {
+                        joinService.sendGuessBlind(myGuess)
+                    }
+                }
+            }
+
+            override fun onRevealResultReceived(results: List<GameSessionManager.RevealResult>) {
+                Log.d(TAG, "Client received ${results.size} reveal results")
+                requireActivity().runOnUiThread {
+                    displayNetworkResults(results)
+                }
+            }
+        }
+    }
+
+    private fun displayNetworkResults(results: List<GameSessionManager.RevealResult>) {
+        val adapter = playerAdapter ?: return
+        val displayResults = results.map {
+            val color = ResourcesCompat.getColor(
+                resources, if (it.isCorrect) R.color.green_correct else R.color.red_wrong, null
+            )
+            val text = if (it.isCorrect) {
+                "Riktig! ±${it.difference} år\n+${it.pointsEarned} poeng"
+            } else {
+                "Feil: ${it.correctYear} (±${it.difference} år)\n+${it.pointsEarned} poeng"
+            }
+            it.playerName to ResultDisplay(text, color)
+        }
+        adapter.revealAll(displayResults)
+        refreshLeaderboard()
+
+        binding.buttonNextVideo.text = "${results.firstOrNull()?.correctYear ?: ""} — ${getString(R.string.next_video)}"
+        binding.buttonNextVideo.visibility = View.VISIBLE
     }
 
     private fun refreshLeaderboard() {
@@ -480,9 +592,14 @@ class VideoPlayerFragment : Fragment() {
                 if (isMultiplayer) {
                     mpRevealed = false
                     playerAdapter?.resetAll()
-                    binding.buttonRevealAnswers.visibility = View.VISIBLE
+                    binding.buttonRevealAnswers.visibility = if (showReveal) View.VISIBLE else View.GONE
                     binding.buttonNextVideo.visibility = View.GONE
                     refreshLeaderboard()
+                }
+
+                // Broadcast video info to remote clients
+                if (isNetworkHost) {
+                    HostGameService.instance?.broadcastVideo(candidate.id, candidate.year, candidate.title)
                 }
 
                 if (isPlayerReady) {
@@ -571,14 +688,16 @@ class VideoPlayerFragment : Fragment() {
 
     companion object {
         private const val ARG_PLAYER_NAMES = "playerNames"
+        private const val ARG_SHOW_REVEAL = "SHOW_REVEAL"
 
-        fun newInstance(playerNames: List<String>? = null): VideoPlayerFragment {
+        fun newInstance(playerNames: List<String>? = null, showReveal: Boolean = true): VideoPlayerFragment {
             val frag = VideoPlayerFragment()
+            val args = Bundle()
             if (!playerNames.isNullOrEmpty()) {
-                val args = Bundle()
                 args.putStringArrayList(ARG_PLAYER_NAMES, ArrayList(playerNames))
-                frag.arguments = args
             }
+            args.putBoolean(ARG_SHOW_REVEAL, showReveal)
+            frag.arguments = args
             return frag
         }
     }

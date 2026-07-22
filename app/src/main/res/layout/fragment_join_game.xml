@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface"
+    android:padding="16dp">
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/textViewJoinTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/join_game_title"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="@color/amber_accent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Player name input -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/textInputLayoutName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:hint="@string/player_name_hint"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewJoinTitle">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editTextPlayerName"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textColor="@color/body_text"
+            android:textColorHint="@color/muted_text" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Discover hosts label -->
+    <TextView
+        android:id="@+id/textViewDiscoveredLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/discovered_hosts_label"
+        android:textSize="14sp"
+        android:textColor="@color/muted_text"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textInputLayoutName" />
+
+    <!-- List of discovered hosts -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewDiscoveredHosts"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="4dp"
+        android:overScrollMode="never"
+        app:layout_constraintBottom_toTopOf="@+id/textViewConnectionStatus"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewDiscoveredLabel"
+        tools:listitem="@layout/item_player_row"
+        tools:visibility="visible" />
+
+    <!-- Connection status -->
+    <TextView
+        android:id="@+id/textViewConnectionStatus"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textSize="14sp"
+        android:textColor="@color/body_text"
+        android:gravity="center"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/progressBarJoin"
+        tools:text="@string/connected_to_host"
+        tools:visibility="visible" />
+
+    <ProgressBar
+        android:id="@+id/progressBarJoin"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        tools:visibility="visible" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

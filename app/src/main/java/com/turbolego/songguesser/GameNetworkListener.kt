@@ -4,7 +4,7 @@ import com.turbolego.songguesser.GameSessionManager.GameSession
 
 /**
  * Interface for game network events — shared between host and join services.
- * Activities/fragments implement this to react to WiFi Direct multiplayer events.
+ * Activities/fragments implement this to react to WiFi Direct / Bluetooth multiplayer events.
  */
 interface GameNetworkListener {
 
@@ -25,6 +25,19 @@ interface GameNetworkListener {
 
     /** Received a video-change broadcast from the host. */
     fun onVideoReceived(videoId: String, year: Int, title: String)
+
+    /**
+     * Received a REVEAL message from the host.
+     * The client should submit its current blind guess via GUESS_BLIND.
+     */
+    fun onRevealReceived()
+
+    /**
+     * Received a REVEAL_RESULT message from the host.
+     * Contains the computed results for all players after a reveal round.
+     * @param results list of reveal results
+     */
+    fun onRevealResultReceived(results: List<GameSessionManager.RevealResult>)
 
     /** Received a turn-change broadcast from the host. */
     fun onTurnReceived(playerName: String)

@@ -155,11 +155,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun navigateToHostGame() {
-        Toast.makeText(this, "HostGame: kommer snart!", Toast.LENGTH_SHORT).show()
+        val frag = HostGameFragment()
+        currentFragment = frag
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack("host_game")
+            .commit()
+        supportActionBar?.title = "Host spill"
     }
 
     private fun navigateToJoinGame() {
-        Toast.makeText(this, "JoinGame: kommer rart!", Toast.LENGTH_SHORT).show()
+        val frag = JoinGameFragment()
+        currentFragment = frag
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack("join_game")
+            .commit()
+        supportActionBar?.title = "Bli med i spill"
     }
 
     private fun confirmResetScore() {
