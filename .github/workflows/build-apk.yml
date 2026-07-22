@@ -109,10 +109,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: app-release
+          path: release
 
       - uses: actions/download-artifact@v4
         with:
           name: app-debug
+          path: debug
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -131,10 +133,15 @@ jobs:
             ### 🎮 Features
             - 🎯 Guess the release year of music videos
             - 📊 Points accuracy + streak multiplier
-            - 🎮 3 difficulty levels (Easy, Medium, Hard)
+            - 🎮 Local multiplayer (same-device hot-seat)
+            - 🎮 WiFi Direct multiplayer (host/join)
+            - 🚫 Duplicate video prevention
+            - 🔇 Audio-only mode (overlay hide video)
+            - 🎨 3 difficulty levels (Easy, Medium, Hard)
             - 💡 Hints on Easy mode (decade + view count)
             - 🌓 Dark theme with amber accent
 
           draft: false
           files: |
-            *.apk
+            release/*.apk
+            debug/*.apk

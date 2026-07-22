@@ -427,21 +427,17 @@ class JoinGameService : Service() {
         try {
             var line: String?
             while (true) {
-                private suspend fun readLoop(reader: BufferedReader) {
-                    try {
-                        var line: String?
-                        while (true) {
-                            line = try {
-                                reader.readLine()
-                            } catch (_: IOException) { null }
-                            if (line == null) break
-                            if (line.isBlank()) continue
-                            try {
-                                dispatchMessage(line)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error dispatching message", e)
-                            }
-                        }
+                line = try {
+                    reader.readLine()
+                } catch (_: IOException) { null }
+                if (line == null) break
+                if (line.isBlank()) continue
+                try {
+                    dispatchMessage(line)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error dispatching message", e)
+                }
+            }
         } catch (e: IOException) {
             Log.d(TAG, "Read loop ended: ${e.message}")
         } finally {
