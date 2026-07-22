@@ -145,10 +145,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun startMultiplayerGame(players: List<MultiPlayerManager.Player>) {
-        val frag = MultiplayerGameFragment.newInstance(players.map {
-            Pair(it.name, it.name)
-        }.toList())
-        gameFragment = frag
+        val names = players.map { it.name }
+        val frag = VideoPlayerFragment.newInstance(names)
         frag.setDifficulty(currentDifficulty)
         currentFragment = frag
         supportFragmentManager.beginTransaction()

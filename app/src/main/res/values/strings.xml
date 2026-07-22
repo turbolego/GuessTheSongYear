@@ -19,6 +19,7 @@
     <!-- Video player -->
     <string name="video_countdown">%d</string>
     <string name="next_video">Neste video</string>
+    <string name="next_player">Neste spiller</string>
     <string name="guess_hint">Gjett årstallet (1960–2025)</string>
     <string name="btn_guess">Gjett!</string>
     <string name="song_release_year">Utgitt i: %d</string>
