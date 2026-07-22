@@ -1,5 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- menu_main.xml - Empty menu file, namespaces not used -->
-<menu>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_difficulty"
+        android:title="@string/menu_difficulty"
+        app:showAsAction="never">
+        <menu>
+            <group android:id="@+id/group_difficulty">
+                <item
+                    android:id="@+id/action_difficulty_easy"
+                    android:title="@string/difficulty_easy" />
+                <item
+                    android:id="@+id/action_difficulty_medium"
+                    android:title="@string/difficulty_medium" />
+                <item
+                    android:id="@+id/action_difficulty_hard"
+                    android:title="@string/difficulty_hard" />
+            </group>
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_reset_score"
+        android:title="@string/menu_reset_score"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_about"
+        android:title="@string/menu_about"
+        app:showAsAction="never" />
 
 </menu>

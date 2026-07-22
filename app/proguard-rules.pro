@@ -1,21 +1,14 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Keep YouTube player
+-keep class com.pierfrancescosoffritti.androidyoutubeplayer.** { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep InnerTube models accessed via reflection
+-keep class com.turbolego.songguesser.ApiVideo { *; }
+-keep class com.turbolego.songguesser.KnownVideo { *; }
 
-# Preserve line number information for debugging stack traces.
--keepattributes SourceFile,LineNumberTable
+# OkHttp is used via reflection in some cases
+-dontwarn okhttp3.**
+-dontwarn okio.**
 
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Kotlin coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}

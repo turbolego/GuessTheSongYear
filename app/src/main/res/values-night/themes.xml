@@ -1,7 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.GuessTheSongYear" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+    <style name="Base.Theme.GuessTheSongYear" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/amber_accent</item>
+        <item name="colorOnPrimary">@color/ink</item>
+        <item name="colorPrimaryContainer">@color/amber_accent_30</item>
+        <item name="colorSecondary">@color/steel</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/body_text</item>
+        <item name="colorOnSurfaceVariant">@color/muted_text</item>
+        <item name="colorOutline">@color/divider</item>
+        <item name="android:colorBackground">@color/ink</item>
     </style>
 </resources>

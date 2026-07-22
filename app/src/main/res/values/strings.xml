@@ -1,59 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Song Year Guess</string>
-    <string name="action_settings">Settings</string>
-    
-    <!-- App strings -->
-    <string name="app_title">Song Year Guess</string>
-    <string name="app_description">Guess the release year of random music videos.</string>
-    <string name="next_video">Next Video</string>
-    <string name="video_countdown">Video starting in %1$d…</string>
-    <string name="loading">Loading…</string>
-    <string name="error_no_video">Couldn\'t load a video. Try again.</string>
-    <string name="song_release_year">Released in: %1$d</string>
-    <string name="year_unknown">Release year unknown</string>
-    <string name="unknown_date">Unknown date</string>
-    <string name="app_logo">App logo</string>
-    
-    <!-- Legacy strings - can be removed later -->
-    <string name="first_fragment_label">First Fragment</string>
-    <string name="second_fragment_label">Second Fragment</string>
-    <string name="next">Next</string>
-    <string name="previous">Previous</string>
+    <string name="app_name">GuessTheSongYear</string>
 
-    <string name="lorem_ipsum">
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam in scelerisque sem. Mauris
-        volutpat, dolor id interdum ullamcorper, risus dolor egestas lectus, sit amet mattis purus
-        dui nec risus. Maecenas non sodales nisi, vel dictum dolor. Class aptent taciti sociosqu ad
-        litora torquent per conubia nostra, per inceptos himenaeos. Suspendisse blandit eleifend
-        diam, vel rutrum tellus vulputate quis. Aliquam eget libero aliquet, imperdiet nisl a,
-        ornare ex. Sed rhoncus est ut libero porta lobortis. Fusce in dictum tellus.\n\n
-        Suspendisse interdum ornare ante. Aliquam nec cursus lorem. Morbi id magna felis. Vivamus
-        egestas, est a condimentum egestas, turpis nisl iaculis ipsum, in dictum tellus dolor sed
-        neque. Morbi tellus erat, dapibus ut sem a, iaculis tincidunt dui. Interdum et malesuada
-        fames ac ante ipsum primis in faucibus. Curabitur et eros porttitor, ultricies urna vitae,
-        molestie nibh. Phasellus at commodo eros, non aliquet metus. Sed maximus nisl nec dolor
-        bibendum, vel congue leo egestas.\n\n
-        Sed interdum tortor nibh, in sagittis risus mollis quis. Curabitur mi odio, condimentum sit
-        amet auctor at, mollis non turpis. Nullam pretium libero vestibulum, finibus orci vel,
-        molestie quam. Fusce blandit tincidunt nulla, quis sollicitudin libero facilisis et. Integer
-        interdum nunc ligula, et fermentum metus hendrerit id. Vestibulum lectus felis, dictum at
-        lacinia sit amet, tristique id quam. Cras eu consequat dui. Suspendisse sodales nunc ligula,
-        in lobortis sem porta sed. Integer id ultrices magna, in luctus elit. Sed a pellentesque
-        est.\n\n
-        Aenean nunc velit, lacinia sed dolor sed, ultrices viverra nulla. Etiam a venenatis nibh.
-        Morbi laoreet, tortor sed facilisis varius, nibh orci rhoncus nulla, id elementum leo dui
-        non lorem. Nam mollis ipsum quis auctor varius. Quisque elementum eu libero sed commodo. In
-        eros nisl, imperdiet vel imperdiet et, scelerisque a mauris. Pellentesque varius ex nunc,
-        quis imperdiet eros placerat ac. Duis finibus orci et est auctor tincidunt. Sed non viverra
-        ipsum. Nunc quis augue egestas, cursus lorem at, molestie sem. Morbi a consectetur ipsum, a
-        placerat diam. Etiam vulputate dignissim convallis. Integer faucibus mauris sit amet finibus
-        convallis.\n\n
-        Phasellus in aliquet mi. Pellentesque habitant morbi tristique senectus et netus et
-        malesuada fames ac turpis egestas. In volutpat arcu ut felis sagittis, in finibus massa
-        gravida. Pellentesque id tellus orci. Integer dictum, lorem sed efficitur ullamcorper,
-        libero justo consectetur ipsum, in mollis nisl ex sed nisl. Donec maximus ullamcorper
-        sodales. Praesent bibendum rhoncus tellus nec feugiat. In a ornare nulla. Donec rhoncus
-        libero vel nunc consequat, quis tincidunt nisl eleifend. Cras bibendum enim a justo luctus
-        vestibulum. Fusce dictum libero quis erat maximus, vitae volutpat diam dignissim.
-    </string>
+    <!-- Menu -->
+    <string name="menu_difficulty">Vanskelighetsgrad</string>
+    <string name="menu_about">Om</string>
+    <string name="menu_reset_score">Nullstill poeng</string>
+
+    <!-- Difficulty -->
+    <string name="difficulty_easy">Lett</string>
+    <string name="difficulty_medium">Medium</string>
+    <string name="difficulty_hard">Vanskelig</string>
+
+    <!-- Video player -->
+    <string name="video_countdown">%d</string>
+    <string name="next_video">Neste video</string>
+    <string name="guess_hint">Gjett årstallet (1960–2025)</string>
+    <string name="btn_guess">Gjett!</string>
+    <string name="song_release_year">Utgitt i: %d</string>
+    <string name="year_unknown">Årstall ikke tilgjengelig</string>
+    <string name="hint_decade">Tiår: %d-tallet</string>
+    <string name="hint_views">Visninger: %d</string>
+
+    <!-- Scoring -->
+    <string name="score_label">Poeng: %d</string>
+    <string name="streak_label">Streak: %d</string>
+    <string name="correct_exact">Perfekt! Akkurat riktig år! 🎯</string>
+    <string name="correct_very_close">Veldig nære! Feil med %d år. 🔥</string>
+    <string name="correct_close">Ganske nære! Feil med %d år. 👍</string>
+    <string name="correct_ok">Feil med %d år. Du fikk noen poeng.</string>
+    <string name="wrong">Feil! Riktig år var %d. 😢</string>
+    <string name="score_earned">+%d poeng</string>
+
+    <!-- Game session (multiplayer stubs) -->
+    <string name="current_player">Spiller: %s</string>
+    <string name="turn_of">%s sin tur</string>
+
+    <!-- Errors -->
+    <string name="error_loading_video">Kunne ikke laste video. Prøv en annen.</string>
+    <string name="error_invalid_year">Vennligst skriv inn et gyldig år (1960–2025).</string>
+    <string name="error_generic">Noe gikk galt. Prøv igjen.</string>
 </resources>

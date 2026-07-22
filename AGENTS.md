@@ -1,83 +1,52 @@
-# GuessTheSongYear – Agent Instructions
+# GuessTheSongYear — AGENTS.md
 
-## Project Overview
-Android app (Kotlin, minSdk 24, targetSdk 35) where users guess the release year of a randomly selected music video. Single-activity, multi-fragment architecture using manual fragment transactions (not Jetpack Navigation, despite `nav_graph.xml` existing).
+## Branch: master
+## Stack: Kotlin, Android (minSdk 24, targetSdk 37), Material3, InnerTube API
 
-## Build & Run
-```
-./gradlew assembleDebug     # build debug APK
-./gradlew build             # full build (debug + release)
-./gradlew test              # unit tests
-./gradlew connectedCheck    # instrumentation tests (requires device/emulator)
-```
-Release AAB is at `app/release/app-release.aab`.
+This is a music-quiz Android app. Users watch a YouTube music video and guess its release year.
 
-## API Key Setup
-The YouTube Data API v3 key is **not** in source control. Set it in `gradle.properties`:
-```
-youtube.api.key=YOUR_KEY_FROM_GOOGLE_CLOUD_CONSOLE
-```
-It is injected into code via `BuildConfig.YOUTUBE_API_KEY` (see `app/build.gradle.kts` `buildConfigField`).
+## Feature flags / future work
 
-## Architecture & Key Files
-```
-app/src/main/java/com/turbolego/songguesser/
-  MainActivity.kt          – Single activity; hosts all fragments in R.id.fragment_container
-  LoginFragment.kt         – Google Sign-In (legacy GoogleSignIn API); passes OAuth token to VideoPlayerFragment via Bundle
-  VideoPlayerFragment.kt   – Core game screen: loads random video → 3-second countdown → plays → reveals year
-  YouTubeFragment.kt       – Search UI; uses YouTubeViewModel + YouTubeAdapter (ListAdapter)
-  YouTubeViewModel.kt      – AndroidViewModel; exposes StateFlow<YouTubeUiState>
-  YouTubeModels.kt         – All shared data classes: SearchResponse, YouTubeVideo, YouTubeUiState, VideoInfo
-  YouTubeApiService.kt     – Retrofit interface + Retrofit-backed YouTubeApiServiceImpl (used by YouTubeViewModel only)
-  util/
-    YouTubeApiService.kt   – OkHttp-backed YouTubeApiServiceImpl (used by VideoPlayerFragment directly)
-    YouTubeAuthManager.kt  – Auth helper (partially used; LoginFragment duplicates some logic inline)
+- [ ] **Local Multiplayer**: WiFi P2P with GameSessionManager (stubbed)
+- [ ] **High Score Persistence**: SharedPreferences or Room DB to save best scores
+- [ ] **Music Video Category Filter**: Genre, decade, artist filters
+- [ ] **Leaderboard**: Firebase or local leaderboard
+- [ ] **Sound FX**: Guess correct/wrong sounds
+- [ ] **Animations**: Smoother transitions between videos
+
+## Build commands
+
+```bash
+./gradlew assembleDebug        # Debug APK
+./gradlew assembleRelease      # Release APK (requires signing)
+./gradlew test                 # Unit tests only
 ```
 
-**Critical naming conflict:** There are **two** classes both named `YouTubeApiServiceImpl` in different packages:
-- `com.turbolego.songguesser.YouTubeApiServiceImpl` – Retrofit-backed, used by `YouTubeViewModel`
-- `com.turbolego.songguesser.util.YouTubeApiServiceImpl` – OkHttp-backed, used by `VideoPlayerFragment`
+## CI
 
-Always check the import when editing either.
+`.github/workflows/build-apk.yml` — builds on push/PR to master.
 
-## Authentication Dual-Mode Pattern
-Both API key and OAuth paths exist throughout `util/YouTubeApiServiceImpl`. Methods come in pairs:
-- `getRandomMusicVideo()` → uses stored API key
-- `getRandomMusicVideoOAuth(accessToken)` → uses Bearer token
+## Dependencies (version catalog)
 
-`VideoPlayerFragment` selects the path at runtime:
-```kotlin
-val videoInfo = if (accessToken != null) {
-    youtubeApiService.getRandomMusicVideoOAuth(accessToken!!)
-} else {
-    youtubeApiService.getRandomMusicVideo()
-}
-```
+`gradle/libs.versions.toml`:
+- compileSdk=37, minSdk=24, targetSdk=37
+- AGP 9.3.0, Kotlin 2.4.10
+- YouTube Player 13.0.0 (com.pierfrancescosoffritti.androidyoutubeplayer)
+- ViewBinding enabled
 
-## Fragment Navigation
-Navigation is done via manual `supportFragmentManager.beginTransaction()` calls, **not** the nav graph. Back-stack is only added when navigating from `YouTubeFragment` to `VideoPlayerFragment`. Arguments are passed via `Bundle` (e.g., `"videoId"`, `"YOUTUBE_ACCESS_TOKEN"`).
+## Release signed APK
 
-## Release Year Extraction
-Year is extracted from YouTube's `publishedAt` ISO-8601 string by taking the first 4 characters:
-```kotlin
-publishedAt.substring(0, 4).toInt()
-```
-This is the canonical pattern in both `YouTubeApiService` files. Do not use date parsing libraries for this field.
+Unsigned release AAB: `app/build/outputs/bundle/release/app-release.aab`
+Debug APK: `app/build/outputs/apk/debug/app-debug.apk`
+Unsigned release APK: `app/build/outputs/apk/release/app-release-unsigned.apk`
 
-## Video Filtering
-`util/YouTubeApiServiceImpl` filters videos to those with ≥1,000,000 views **and** `embeddable = true` before selecting. Fallback is hardcoded: `dQw4w9WgXcQ` (Rick Astley, 1987).
+## Key source files
 
-## ViewBinding vs findViewById
-`LoginFragment` and `YouTubeFragment` use ViewBinding (`FragmentLoginBinding`, `FragmentYoutubeBinding`). `VideoPlayerFragment` uses `findViewById` — keep this inconsistency in mind when editing layouts used by that fragment.
-
-## Google OAuth Client ID
-Stored in `res/values/` as `@string/google_oauth_client_id_web`. Required for `GoogleSignInOptions.requestIdToken(...)` in both `LoginFragment` and `YouTubeAuthManager`.
-
-## Dependency Versions (key entries in `gradle/libs.versions.toml`)
-- AGP `9.2.1`, Kotlin `2.2.10`
-- YouTube Player: `com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0`
-- YouTube Data API: `google-api-services-youtube:v3-rev20231011-2.0.0`
-- OkHttp `4.12.0`, Retrofit `2.11.0`, Glide `4.16.0`
-
-All library versions are managed via the version catalog; add new dependencies there rather than hardcoding in `app/build.gradle.kts`.
-
+| File | Purpose |
+|------|---------|
+| `MainActivity.kt` | Activity, toolbar, menu, difficulty switching |
+| `VideoPlayerFragment.kt` | Core game: player, guess input, scoring |
+| `YouTubeSearchService.kt` | InnerTube API, falls back to hardcoded list |
+| `ScoreManager.kt` | Points, streaks, accuracy |
+| `Difficulty.kt` | Easy/Medium/Hard config |
+| `GameSessionManager.kt` | Multiplayer session (stub for future) |

@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <color name="ink">#0d1117</color>
+    <color name="surface">#161b22</color>
+    <color name="surface_elevated">#1c2333</color>
+    <color name="amber_accent">#e8a020</color>
+    <color name="amber_accent_30">#4de8a020</color>
+    <color name="amber_deep">#c6870a</color>
+    <color name="body_text">#e6edf3</color>
+    <color name="muted_text">#8b949e</color>
+    <color name="green_correct">#3fb950</color>
+    <color name="red_wrong">#f85149</color>
+    <color name="white">#ffffff</color>
+    <color name="black">#000000</color>
+    <color name="divider">#30363d</color>
+    <color name="steel">#3a5068</color>
 </resources>

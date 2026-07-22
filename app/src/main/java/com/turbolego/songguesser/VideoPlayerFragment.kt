@@ -1,19 +1,20 @@
 package com.turbolego.songguesser
 
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.ProgressBar
-import android.widget.TextView
+import android.view.inputmethod.EditorInfo
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
+import com.turbolego.songguesser.databinding.FragmentVideoPlayerBinding
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -22,99 +23,77 @@ import kotlin.time.Duration.Companion.seconds
 
 private const val TAG = "VideoPlayerFragment"
 
-/**
- * A known video with its release year (used as fallback).
- */
+/** A known video with its release year (fallback). */
 data class KnownVideo(val id: String, val year: Int)
 
-/**
- * A video with its release year and view count (from API).
- */
+/** A video with metadata from API or fallback. */
 data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
 
 /**
  * Fallback list of popular music videos with known release years.
- * Used when InnerTube search fails or returns no results.
- * These are well-known, stable videos that are consistently available on YouTube.
+ * Used when InnerTube search fails.
  */
 private val fallbackVideoList = listOf(
-    // 1980s
-    KnownVideo("dQw4w9WgXcQ", 1987),       // Rick Astley - Never Gonna Give You Up
-    KnownVideo("ZbZSe6N_BXs", 1985),       // Madonna - Material Girl
-    KnownVideo("2Z8IUAiIufKN", 1983),      // Michael Jackson - Thriller
-    KnownVideo("djV1KL4Btzw", 1984),       // Duran Duran - Hungry Like the Wolf
-    KnownVideo("rYEDA3JiTEA", 1984),       // A-ha - Take On Me
-    KnownVideo("1w7OgIMMRc4", 1985),       // Guns N' Roses - Sweet Child O' Mine
-    KnownVideo("1G4isv_Fyls", 1985),       // Michael Jackson - Billie Jean
-    KnownVideo("hr0ObGAUDlQ", 1982),       // Blondie - Rapture
-
-    // 1990s
-    KnownVideo("hcwnL9a61o0", 1999),       // Backstreet Boys - I Want It That Way
-    KnownVideo("tF3iR0rN-8g", 1991),       // Nirvana - Smells Like Teen Spirit
-    KnownVideo("q3zKKtYsEj8", 1994),       // Red Hot Chili Peppers - Give It Away
-    KnownVideo("ZmDBbnMFK70", 1999),       // Spice Girls - Say You'll Be There
-    KnownVideo("YR5W3FKE88Q", 1998),       // Vengaboys - Boom, Boom, Boom!!
-    KnownVideo("fLexgOxsZu0", 1996),       // Spice Girls - Spice Up Your Life
-    KnownVideo("XbGsChTe4go", 1999),       // Aqua - Barbie Girl
-    KnownVideo("6KnRLJZ0ZRw", 1995),       // Spice Girls - Wannabe
-
-    // 2000s
-    KnownVideo("eBCRc2Zk6hA", 2000),       // OutKast - Hey Ya!
-    KnownVideo("dQ1ribkayAU", 2008),       // Lady Gaga - Poker Face
-    KnownVideo("lp-EO5I60KA", 2009),       // Eminem - Not Afraid
-    KnownVideo("kJQP7kiw5Fk", 2006),       // Luis Miguel - No Me Importa
-
-    // 2010s
-    KnownVideo("9bZkp7q19f0", 2012),       // PSY - Gangnam Style
-    KnownVideo("YQHsXMglC9A", 2015),       // Adele - Hello
-    KnownVideo("OPf0YbXqDm0", 2014),       // Mark Ronson - Uptown Funk
-    KnownVideo("2Vv-BfVoq4g", 2017),       // Ed Sheeran - Perfect
-    KnownVideo("Rl6bfz9xYio", 2023),       // Tate McRae - Greedy
-    KnownVideo("kPa7bsKwL-c", 2023),       // Steve Lacy - Bad Habit
-    KnownVideo("hVlgHmeZjg8", 2021),       // BTS - Butter
-    KnownVideo("ffxKSjUwZdU", 2021),       // Måneskin - Beggin'
-    KnownVideo("QOQZRLdv3s0", 2018),       // The Weeknd - Call Out My Name
-    KnownVideo("uelHwf8o7_U", 2018),       // Lady Gaga, Bradley Cooper - Shallow
-    KnownVideo("Z09lZZd7aJs", 2020),       // Dua Lipa - Physical
-    KnownVideo("nPLV7lGczsE", 2017),       // Dua Lipa - New Rules
-    KnownVideo("GtMSnMlLiwY", 2019),       // Shawn Mendes, Camila Cabello - Señorita
-    KnownVideo("u7K7pXAhK5c", 2015),       // Sam Smith - Stay With Me
-    KnownVideo("bo_efYxQAse", 2018),       // Bruno Mars - Finesse
-    KnownVideo("YVkKvmAVWHE", 2019),       // Billie Eilish - Bad Guy
-    KnownVideo("YBHQbu5FpLk", 2020),       // Dua Lipa - Don't Start Now
-    KnownVideo("1Q9qGcPp3b4", 2021),       // The Weeknd - Save Your Tears
-    KnownVideo("456sX5lPcTQ", 2021),       // Olivia Rodrigo - Drivers License
-    KnownVideo("b4Bj7Zb-YDc", 2021),       // Olivia Rodrigo - Good 4 U
-    KnownVideo("pBk4NYvBMJc", 2022),       // Imagine Dragons - Bones
-    KnownVideo("W0DM0WCb5ac", 2023),       // Miley Cyrus - Flowers
-    KnownVideo("iWzVlFouYwE", 2023),       // Sam Smith, Kim Petras - Unholy
+    KnownVideo("dQw4w9WgXcQ", 1987),
+    KnownVideo("ZbZSe6N_BXs", 1985),
+    KnownVideo("djV1KL4Btzw", 1984),
+    KnownVideo("rYEDA3JiTEA", 1984),
+    KnownVideo("1w7OgIMMRc4", 1985),
+    KnownVideo("1G4isv_Fyls", 1985),
+    KnownVideo("hr0ObGAUDlQ", 1982),
+    KnownVideo("hcwnL9a61o0", 1999),
+    KnownVideo("tF3iR0rN-8g", 1991),
+    KnownVideo("q3zKKtYsEj8", 1994),
+    KnownVideo("ZmDBbnMFK70", 1999),
+    KnownVideo("YR5W3FKE88Q", 1998),
+    KnownVideo("XbGsChTe4go", 1999),
+    KnownVideo("6KnRLJZ0ZRw", 1995),
+    KnownVideo("eBCRc2Zk6hA", 2000),
+    KnownVideo("dQ1ribkayAU", 2008),
+    KnownVideo("lp-EO5I60KA", 2009),
+    KnownVideo("kJQP7kiw5Fk", 2006),
+    KnownVideo("9bZkp7q19f0", 2012),
+    KnownVideo("YQHsXMglC9A", 2015),
+    KnownVideo("OPf0YbXqDm0", 2014),
+    KnownVideo("2Vv-BfVoq4g", 2017),
+    KnownVideo("Rl6bfz9xYio", 2023),
+    KnownVideo("kPa7bsKwL-c", 2023),
+    KnownVideo("hVlgHmeZjg8", 2021),
+    KnownVideo("ffxKSjUwZdU", 2021),
+    KnownVideo("QOQZRLdv3s0", 2018),
+    KnownVideo("uelHwf8o7_U", 2019),
+    KnownVideo("Z09lZZd7aJs", 2020),
+    KnownVideo("nPLV7lGczsE", 2017),
+    KnownVideo("YVkKvmAVWHE", 2019),
+    KnownVideo("YBHQbu5FpLk", 2020),
+    KnownVideo("1Q9qGcPp3b4", 2021),
+    KnownVideo("456sX5lPcTQ", 2021),
+    KnownVideo("b4Bj7Zb-YDc", 2021),
+    KnownVideo("pBk4NYvBMJc", 2022),
+    KnownVideo("W0DM0WCb5ac", 2023),
+    KnownVideo("iWzVlFouYwE", 2023),
 )
 
-/**
- * Current list of videos to use (API results or fallback).
- */
+/** Current video pool. */
 private var currentVideoList: MutableList<ApiVideo> = mutableListOf()
 
 /**
- * Fetch videos from InnerTube API and update currentVideoList.
- * Uses hardcoded list as fallback if API fails.
+ * Fetches music videos from InnerTube API, falling back to hardcoded list.
  */
 private suspend fun fetchVideosFromApi() {
     Log.d(TAG, "Fetching videos from InnerTube API...")
-    
     val apiVideos = try {
         YouTubeSearchService.searchMusicVideos()
     } catch (e: Exception) {
-        Log.e(TAG, "API search failed, using fallback list", e)
+        Log.e(TAG, "API search failed", e)
         emptyList()
     }
-    
     if (apiVideos.isNotEmpty()) {
-        Log.d(TAG, "Successfully fetched ${apiVideos.size} videos from API")
+        Log.d(TAG, "Got ${apiVideos.size} videos from API")
         currentVideoList.clear()
         currentVideoList.addAll(apiVideos)
     } else {
-        Log.w(TAG, "No videos from API, using fallback list (${fallbackVideoList.size} videos)")
+        Log.w(TAG, "Using fallback (${fallbackVideoList.size} videos)")
         currentVideoList.clear()
         currentVideoList.addAll(fallbackVideoList.map { ApiVideo(it.id, it.year, 0, "") })
     }
@@ -122,104 +101,123 @@ private suspend fun fetchVideosFromApi() {
 
 class VideoPlayerFragment : Fragment() {
 
-    private lateinit var progressBar: ProgressBar
-    private lateinit var youtubePlayerView: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
-    private lateinit var textViewCountdown: TextView
-    private lateinit var textViewSongYear: TextView
-    private lateinit var buttonNextVideo: Button
+    private var _binding: FragmentVideoPlayerBinding? = null
+    private val binding get() = _binding!!
 
-    private var loadVideoJob: Job? = null
-    private var countdownJob: Job? = null
     private var youTubePlayer: YouTubePlayer? = null
     private var currentVideo: ApiVideo? = null
     private var isPlayerReady = false
-    private var isVideoLoaded = false
+    private var hasGuessedThisRound = false
+    private var currentDifficulty: Difficulty = Difficulty.MEDIUM
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        // Setup UI components
-        setupNextVideoButton()
-        setupYouTubePlayer()
-
-        // Fetch videos from API when fragment is created
-        lifecycleScope.launch {
-            fetchVideosFromApi()
-        }
-
-        // Show loading initially
-        progressBar.visibility = View.VISIBLE
-    }
+    private var countdownJob: Job? = null
+    private var loadVideoJob: Job? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val view = inflater.inflate(R.layout.fragment_video_player, container, false)
+        _binding = FragmentVideoPlayerBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
-        // Initialize views using findViewById
-        progressBar = view.findViewById(R.id.progressBar)
-        youtubePlayerView = view.findViewById(R.id.youtube_player_view)
-        textViewCountdown = view.findViewById(R.id.textViewCountdown)
-        textViewSongYear = view.findViewById(R.id.textViewSongYear)
-        buttonNextVideo = view.findViewById(R.id.buttonNextVideo)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-        return view
+        setupListeners()
+        setupYouTubePlayer()
+
+        lifecycleScope.launch {
+            fetchVideosFromApi()
+        }
+
+        updateScoreDisplay()
+        binding.progressBar.visibility = View.VISIBLE
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        countdownJob?.cancel()
+        loadVideoJob?.cancel()
+        youTubePlayer = null
+        isPlayerReady = false
+        _binding = null
+    }
+
+    // ── Difficulty ──────────────────────────────────────────────────────────
+
+    fun setDifficulty(difficulty: Difficulty) {
+        currentDifficulty = difficulty
+    }
+
+    // ── UI Setup ────────────────────────────────────────────────────────────
+
+    private fun setupListeners() {
+        // Guess button
+        binding.buttonGuess.setOnClickListener {
+            submitGuess()
+        }
+
+        // Enter key in edit text
+        binding.editTextGuess.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                submitGuess()
+                true
+            } else false
+        }
+
+        // Enable guess button when text is present
+        binding.editTextGuess.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                binding.buttonGuess.isEnabled = !s.isNullOrBlank()
+            }
+        })
+
+        // Next video
+        binding.buttonNextVideo.setOnClickListener {
+            loadRandomVideo()
+        }
     }
 
     private fun setupYouTubePlayer() {
-        Log.d(TAG, "Setting up YouTube player")
+        lifecycle.addObserver(binding.youtubePlayerView)
 
-        // Important: Add the player view to lifecycle
-        lifecycle.addObserver(youtubePlayerView)
-
-        // Create custom player options
         val options = IFramePlayerOptions.Builder(requireContext())
-            .controls(1)       // Show controls
-            .fullscreen(1)     // Enable fullscreen button
+            .controls(1)
+            .fullscreen(1)
             .build()
 
-        // Initialize player with options
-        youtubePlayerView.initialize(object : AbstractYouTubePlayerListener() {
-            override fun onReady(youTubePlayer: YouTubePlayer) {
-                Log.d(TAG, "YouTube player is ready")
-                this@VideoPlayerFragment.youTubePlayer = youTubePlayer
+        binding.youtubePlayerView.initialize(object : AbstractYouTubePlayerListener() {
+            override fun onReady(yp: YouTubePlayer) {
+                youTubePlayer = yp
                 isPlayerReady = true
-
-                // Once player is ready, load a video
-                if (currentVideo == null) {
-                    loadRandomVideo()
-                } else {
-                    startCountdown(currentVideo!!.id)
-                }
+                if (currentVideo == null) loadRandomVideo()
+                else startCountdown(currentVideo!!.id)
             }
 
             override fun onStateChange(
-                youTubePlayer: YouTubePlayer,
+                yp: YouTubePlayer,
                 state: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState
             ) {
-                // When video state changes to PLAYING, show the release year
                 if (state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.PLAYING) {
                     val vid = currentVideo?.id ?: "unknown"
-                    Log.d(TAG, "Video playback started: $vid")
-                    isVideoLoaded = true
-                    showReleaseYear()
+                    Log.d(TAG, "Video started: $vid")
+                    // Enable guessing when video starts
+                    binding.editTextGuess.isEnabled = true
+                    binding.editTextGuess.requestFocus()
+                    if (currentDifficulty.hintEnabled) showHint()
                 }
             }
 
             override fun onError(
-                youTubePlayer: YouTubePlayer,
+                yp: YouTubePlayer,
                 error: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError
             ) {
-                val errorCode = error.ordinal
-                val errorName = error.name
-                Log.e(TAG, "YouTube player error: code=$errorCode, name=$errorName")
-
-                progressBar.visibility = View.GONE
-                isVideoLoaded = false
-
-                // Try another video after a brief delay
+                Log.e(TAG, "Player error: ${error.name}")
+                binding.progressBar.visibility = View.GONE
                 lifecycleScope.launch {
                     delay(1.5.seconds)
                     loadRandomVideo()
@@ -228,96 +226,153 @@ class VideoPlayerFragment : Fragment() {
         }, options)
     }
 
-    private fun setupNextVideoButton() {
-        buttonNextVideo.setOnClickListener {
-            Log.d(TAG, "Next video button clicked")
-            loadRandomVideo()
+    // ── Hint System ─────────────────────────────────────────────────────────
+
+    private fun showHint() {
+        currentVideo?.let { video ->
+            val decade = (video.year / 10) * 10
+            val viewsText = when {
+                video.views >= 1_000_000_000L -> "${video.views / 1_000_000_000} milliarder"
+                video.views >= 1_000_000L -> "${video.views / 1_000_000}M"
+                video.views >= 1_000L -> "${video.views / 1_000}K"
+                else -> "${video.views}"
+            }
+            binding.textViewHint.text = getString(R.string.hint_decade, decade)
+            if (video.views > 0) {
+                binding.textViewHint.append(" | ${getString(R.string.hint_views, video.views)}")
+            }
+            binding.textViewHint.visibility = View.VISIBLE
         }
     }
 
+    // ── Game Flow ───────────────────────────────────────────────────────────
+
+    private fun submitGuess() {
+        if (hasGuessedThisRound) return
+
+        val guessText = binding.editTextGuess.text.toString().trim()
+        if (guessText.length != 4) {
+            Toast.makeText(requireContext(), R.string.error_invalid_year, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val guessedYear = guessText.toIntOrNull()
+        if (guessedYear == null || guessedYear !in 1960..2025) {
+            Toast.makeText(requireContext(), R.string.error_invalid_year, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val video = currentVideo ?: return
+        hasGuessedThisRound = true
+        binding.editTextGuess.isEnabled = false
+        binding.buttonGuess.isEnabled = false
+
+        // Evaluate
+        val result = ScoreManager.evaluateGuess(guessedYear, video.year, currentDifficulty)
+
+        // Show feedback
+        val fbText = if (result.pointsEarned > 0) {
+            val feedback = getString(result.messageResId, *result.messageArgs.toTypedArray())
+            "$feedback\n${getString(R.string.score_earned, result.pointsEarned)}"
+        } else {
+            getString(result.messageResId, *result.messageArgs.toTypedArray())
+        }
+        binding.textViewFeedback.text = fbText
+        binding.textViewFeedback.setTextColor(
+            if (result.isCorrect) resources.getColor(R.color.green_correct, null)
+            else resources.getColor(R.color.red_wrong, null)
+        )
+        binding.textViewFeedback.visibility = View.VISIBLE
+
+        // Show the actual year
+        binding.textViewSongYear.text = getString(R.string.song_release_year, video.year)
+        binding.textViewSongYear.visibility = View.VISIBLE
+
+        // Show next button
+        binding.buttonNextVideo.visibility = View.VISIBLE
+
+        updateScoreDisplay()
+    }
+
     private fun loadRandomVideo() {
-        Log.d(TAG, "Loading random video from pool (${currentVideoList.size} videos)")
+        Log.d(TAG, "Loading random video (${currentVideoList.size} in pool)")
 
-        // Show loading indicator
-        progressBar.visibility = View.VISIBLE
-        textViewCountdown.visibility = View.GONE
-        textViewSongYear.visibility = View.GONE
-        isVideoLoaded = false
+        // Reset UI
+        binding.progressBar.visibility = View.VISIBLE
+        binding.textViewCountdown.visibility = View.GONE
+        binding.textViewHint.visibility = View.GONE
+        binding.textViewSongYear.visibility = View.GONE
+        binding.textViewFeedback.visibility = View.GONE
+        binding.buttonNextVideo.visibility = View.GONE
+        binding.editTextGuess.isEnabled = false
+        binding.editTextGuess.setText("")
+        binding.buttonGuess.isEnabled = false
+        hasGuessedThisRound = false
 
-        // Cancel any existing countdown and load video job
         countdownJob?.cancel()
         loadVideoJob?.cancel()
 
-        // Pick a random video from the pool
         loadVideoJob = lifecycleScope.launch {
             try {
-                val video = currentVideoList[Random.nextInt(currentVideoList.size)]
-                Log.d(TAG, "Selected video: ${video.id}, Year: ${video.year}, Views: ${video.views}")
-
+                // Filter by difficulty range
+                val filtered = currentVideoList.filter {
+                    it.year in currentDifficulty.yearRangeStart..currentDifficulty.yearRangeEnd
+                }
+                val pool = if (filtered.isEmpty()) currentVideoList else filtered
+                val video = pool[Random.nextInt(pool.size)]
+                Log.d(TAG, "Selected: ${video.id} (${video.year})")
                 currentVideo = video
 
-                // If player is ready, play this video
                 if (isPlayerReady) {
                     startCountdown(video.id)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading video: ${e.message}", e)
-                Toast.makeText(
-                    requireContext(),
-                    "Error loading video. Try another.",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Log.e(TAG, "Error loading video", e)
+                Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     private fun startCountdown(videoId: String) {
-        Log.d(TAG, "Starting countdown before playing video: $videoId")
-
-        textViewCountdown.visibility = View.VISIBLE
-        progressBar.visibility = View.GONE
+        binding.textViewCountdown.visibility = View.VISIBLE
+        binding.progressBar.visibility = View.GONE
 
         countdownJob = lifecycleScope.launch {
             for (i in 3 downTo 1) {
-                textViewCountdown.text = getString(R.string.video_countdown, i)
+                binding.textViewCountdown.text = getString(R.string.video_countdown, i)
                 delay(1.seconds)
             }
-
-            textViewCountdown.visibility = View.GONE
-
+            binding.textViewCountdown.visibility = View.GONE
             try {
-                // Load the video when countdown completes
                 youTubePlayer?.loadVideo(videoId, 0f)
-                Log.d(TAG, "Video load command sent: $videoId")
-                // Note: showReleaseYear() is called from onStateChange callback
+                Log.d(TAG, "Playing: $videoId")
             } catch (e: Exception) {
-                Log.e(TAG, "Error starting video: ${e.message}", e)
-                Toast.makeText(
-                    requireContext(),
-                    "Error playing video. Try another.",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Log.e(TAG, "Error playing video", e)
+                Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun showReleaseYear() {
-        currentVideo?.let { video ->
-            textViewSongYear.text = getString(R.string.song_release_year, video.year)
-        } ?: run {
-            textViewSongYear.text = getString(R.string.year_unknown)
+    private fun updateScoreDisplay() {
+        binding.textViewScore.text = buildString {
+            append("Score: ${ScoreManager.score}")
+            if (ScoreManager.streak > 0) {
+                append("  |  Streak: ${ScoreManager.streak}")
+            }
         }
-        textViewSongYear.visibility = View.VISIBLE
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        // Cancel any pending operations
-        countdownJob?.cancel()
-        loadVideoJob?.cancel()
+    // ── Public API for MainActivity ──────────────────────────────────────────
 
-        // Release YouTube player
-        youTubePlayer = null
-        isPlayerReady = false
+    fun resetScore() {
+        ScoreManager.reset()
+        updateScoreDisplay()
+    }
+
+    fun getStats(): String = buildString {
+        append("Totalt: ${ScoreManager.guessCount} gjetninger")
+        append("\nRiktige: ${ScoreManager.correctCount} (${(ScoreManager.accuracy * 100).toInt()}%)")
+        append("\nHøyeste streak: ${ScoreManager.highStreak}")
+        append("\nPoeng totalt: ${ScoreManager.score}")
     }
 }

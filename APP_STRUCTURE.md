@@ -1,111 +1,90 @@
 # GuessTheSongYear - App Structure Overview
 
 ## Project Overview
-Android app (Kotlin, minSdk 24, targetSdk 37) where users guess the release year of a randomly selected music video. Single-activity, multi-fragment architecture using manual fragment transactions.
+Android app (Kotlin, minSdk 24, targetSdk 37) where users guess the release year of a randomly selected music video. Single-activity architecture with fragment-based game screen.
 
 ## Architecture
 
 ```
 app/src/main/java/com/turbolego/songguesser/
-├── MainActivity.kt                    # Single activity; hosts all fragments
-├── VideoPlayerFragment.kt            # Core game screen
-├── YouTubeSearchService.kt           # InnerTube API service
-└── util/                              # (Empty - was mentioned in AGENTS.md)
+├── MainActivity.kt              # Single activity; hosts fragment, menu, difficulty
+├── VideoPlayerFragment.kt       # Core game screen with guessing mechanics
+├── YouTubeSearchService.kt      # InnerTube API service for YouTube search
+├── ScoreManager.kt              # Scoring system, streaks, accuracy
+├── Difficulty.kt                # Difficulty levels enum
+├── GameSessionManager.kt        # (Future) Local multiplayer session manager
+├── YouTubeModels.kt             # Data models for YouTube API responses
+└── util/                        # (Planned) Utility classes
 ```
-
-## Layouts
-
-```
-app/src/main/res/layout/
-├── activity_main.xml                 # Main activity layout (Toolbar + FragmentContainer)
-└── fragment_video_player.xml        # Video player fragment layout
-```
-
-## Resources
-
-```
-app/src/main/res/values/
-├── strings.xml                       # All string resources
-└── auth_config.xml                   # OAuth client ID string reference
-```
-
-## Build Configuration
-
-### Key Files
-- `build.gradle.kts` - App-level build configuration
-- `gradle/libs.versions.toml` - Version catalog
-- `gradle.properties` - Project-wide Gradle settings
-
-### Dependencies
-| Library | Version | Purpose |
-|---------|---------|---------|
-| AndroidX Core KTX | 1.19.0 | Kotlin extensions |
-| AppCompat | 1.7.1 | Compatibility library |
-| Material | 1.14.0 | Material Design components |
-| ConstraintLayout | 2.2.1 | Layout library |
-| YouTube Player | 13.0.0 | YouTube player integration |
-| Kotlinx Coroutines | 1.11.0 | Async operations |
-| OkHttp | 4.12.0 | HTTP client for InnerTube API |
-
-## Core Components
-
-### MainActivity
-- Sets up edge-to-edge display
-- Configures window insets for status and navigation bars
-- Hosts VideoPlayerFragment in fragment_container
-- Uses ViewBinding
-
-### VideoPlayerFragment
-- Displays YouTube video player
-- Shows 3-second countdown before video plays
-- Reveals release year after video starts
-- Has "Next Video" button to load new video
-- Uses findViewById (not ViewBinding)
-- Lifecycle-aware with coroutines
-
-### YouTubeSearchService
-- Uses YouTube's InnerTube API (no API key required)
-- Searches for music videos with 10M+ views
-- Falls back to hardcoded list if API fails
-- Contains known video ID to year mapping
-
-## Data Classes
-
-### KnownVideo
-```kotlin
-data class KnownVideo(val id: String, val year: Int)
-```
-Fallback list of popular music videos with known release years.
-
-### ApiVideo
-```kotlin
-data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
-```
-Video data from API with view count.
 
 ## Key Features
 
-1. **Random Video Selection**: Picks from API results or fallback list
-2. **Countdown Timer**: 3-second countdown before video plays
-3. **Year Reveal**: Shows release year after video starts
-4. **Fallback Mechanism**: Uses hardcoded list if InnerTube API fails
-5. **Edge-to-Edge Display**: Full-screen UI with system bar insets
+1. **🎯 Guess The Year**: Watch a music video snippet → guess its release year
+2. **📊 Scoring System**: Points based on accuracy (0 diff = 50pts, up to 10 diff = 5pts)
+3. **🔥 Streak System**: Consecutive correct guesses multiply points
+4. **🎮 Difficulty Levels**:
+   - **Easy** (1980–2010, hints enabled): Decade + view count hints
+   - **Medium** (1970–2024): No hints
+   - **Hard** (1960–2025): No hints, 2.5x point multiplier
+5. **💾 Persistent Fallback**: 38 hardcoded music videos used when API fails
+6. **🔍 YouTube InnerTube API**: No API key required (undocumented endpoint)
+7. **🌓 Dark Theme**: Material3 dark design with amber accent
 
-## Build Commands
+## Dependencies
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| AndroidX Core KTX | 1.19.0 | Kotlin extensions |
+| AppCompat | 1.7.1 | Compatibility |
+| Material | 1.14.0 | Material Design |
+| ConstraintLayout | 2.2.1 | Layout |
+| YouTube Player | 13.0.0 | YouTube playback |
+| Kotlinx Coroutines | 1.11.0 | Async |
+| OkHttp | 4.12.0 | InnerTube HTTP |
+
+## Build
 
 ```bash
-./gradlew assembleDebug     # Build debug APK
-./gradlew build             # Full build (debug + release)
-./gradlew test              # Unit tests
-./gradlew connectedCheck    # Instrumentation tests (requires device/emulator)
+./gradlew assembleDebug        # Debug APK (~45MB)
+./gradlew assembleRelease      # Release APK (minified, ~12MB)
+./gradlew test                 # Unit tests
 ```
 
-## Release Build
-- AAB located at: `app/release/app-release.aab`
+## CI
 
-## Known Issues / Notes
+GitHub Actions workflow under `.github/workflows/build-apk.yml`:
+- Builds debug + release APK on push to master
+- Runs unit tests
+- Uploads artifacts (30-day retention)
 
-1. **ViewBinding Inconsistency**: MainActivity and YouTubeFragment use ViewBinding, VideoPlayerFragment uses findViewById
-2. **Empty util Package**: AGENTS.md mentions `util/YouTubeApiServiceImpl` and `util/YouTubeAuthManager` but these don't exist
-3. **InnerTube API Reliability**: The undocumented YouTube API may not always work; fallback list is used as backup
-4. **Year Accuracy**: Some video years in the mapping may be incorrect (e.g., "Never Gonna Give You Up" was released in 1987, not 1987 as stated)
+## Screens
+
+### Main Activity
+- Toolbar with difficulty menu (Easy/Medium/Hard), Reset Score, About
+- Fragment container holding VideoPlayerFragment
+- Edge-to-edge display
+
+### Video Player Fragment
+- YouTube player (16:9)
+- Score + streak display bar
+- 3-second countdown before video plays
+- Hint text (decade + views, easy mode only)
+- Year guess input + Submit button
+- Feedback text (correct/wrong + points earned)
+- Release year reveal
+- "Next Video" button
+
+## Game Flow
+
+1. App starts → fetch videos from InnerTube API (or fallback)
+2. Random video selected → 3-second countdown
+3. Video plays → user guesses year
+4. Feedback shown with points earned
+5. "Next Video" → repeat
+
+## Known Issues
+
+1. **InnerTube API**: Undocumented YouTube API may change/break. Fallback list used as backup.
+2. **Year Accuracy**: Some fallback video years may be approximate (not all have verified release dates).
+3. **ViewBinding Inconsistency**: MainActivity uses ViewBinding, VideoPlayerFragment uses ViewBinding. Consistent.
+4. **InnerTube Response Parsing**: Multiple JSON path strategies attempted; YouTube may change response structure.
