@@ -21,9 +21,7 @@ class MainActivity : AppCompatActivity() {
     private var currentDifficulty: Difficulty = Difficulty.MEDIUM
 
     companion object {
-        /** Static access for the VideoPlayerFragment across screens. */
-        var gameFragment: MultiplayerGameFragment? = null
-            private set
+        @Volatile var activeFragment: VideoPlayerFragment? = null
     }
 
     val videoPlayerFragment: VideoPlayerFragment?

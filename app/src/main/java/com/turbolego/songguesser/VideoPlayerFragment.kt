@@ -9,15 +9,18 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.Toast
+import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
 import com.turbolego.songguesser.databinding.FragmentVideoPlayerBinding
+import com.turbolego.songguesser.databinding.ItemPlayerGuessBinding
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
@@ -28,44 +31,19 @@ data class KnownVideo(val id: String, val year: Int)
 data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
 
 private val fallbackVideoList = listOf(
-    KnownVideo("dQw4w9WgXcQ", 1987),
-    KnownVideo("ZbZSe6N_BXs", 1985),
-    KnownVideo("djV1KL4Btzw", 1984),
-    KnownVideo("rYEDA3JiTEA", 1984),
-    KnownVideo("1w7OgIMMRc4", 1985),
-    KnownVideo("1G4isv_Fyls", 1985),
-    KnownVideo("hr0ObGAUDlQ", 1982),
-    KnownVideo("hcwnL9a61o0", 1999),
-    KnownVideo("tF3iR0rN-8g", 1991),
-    KnownVideo("q3zKKtYsEj8", 1994),
-    KnownVideo("ZmDBbnMqK70", 1999),
-    KnownVideo("YR5W3FKE88Q", 1998),
-    KnownVideo("XbGsChTe4go", 1999),
-    KnownVideo("6KnRLJZ0ZRw", 1995),
-    KnownVideo("eBCRc2Zk6hA", 2000),
-    KnownVideo("dQ1ribkayAU", 2008),
-    KnownVideo("lp-EO5I60KA", 2009),
-    KnownVideo("kJQP7kiF5Fk", 2006),
-    KnownVideo("9bZkp7q19f0", 2012),
-    KnownVideo("YQHsXMglC9A", 2015),
-    KnownVideo("OPf0YbXqDm0", 2014),
-    KnownVideo("2Vv-BfVoq4g", 2017),
-    KnownVideo("R1Bfz9xYio", 2023),
-    KnownVideo("kPa7bsDwL-c", 2023),
-    KnownVideo("hVlgHmeZjg8", 2021),
-    KnownVideo("ffxKSjUtwZU", 2021),
-    KnownVideo("QOZZRLdv3s0", 2018),
-    KnownVideo("uelHdwf8o7U", 2019),
-    KnownVideo("Z09lZZd7aJs", 2020),
-    KnownVideo("nPLV7lGczsE", 2017),
-    KnownVideo("YVkKvmAVWHE", 2019),
-    KnownVideo("YBHQbu5FpLk", 2020),
-    KnownVideo("1q9XplKp3G4", 2021),
-    KnownVideo("4t6sX5dD4cT", 2021),
-    KnownVideo("b4Bj7Zb-YDc", 2021),
-    KnownVideo("pBk4LyvAMJc", 2022),
-    KnownVideo("W0DW0WCb5ac", 2023),
-    KnownVideo("iWzvlFnyYwE", 2023),
+    KnownVideo("dQw4w9WgXcQ", 1987), KnownVideo("ZbZSe6N_BXs", 1985),
+    KnownVideo("djV1KL4Btzw", 1984), KnownVideo("rYEDA3JiTEA", 1984),
+    KnownVideo("1w7OgIMMRc4", 1985), KnownVideo("1G4isv_Fyls", 1985),
+    KnownVideo("hr0ObGAUDlQ", 1982), KnownVideo("hcwnL9a61o0", 1999),
+    KnownVideo("tF3iR0rN-8g", 1991), KnownVideo("q3zKKtYsEj8", 1994),
+    KnownVideo("ZmDBbnMqK70", 1999), KnownVideo("YR5W3FKE88Q", 1998),
+    KnownVideo("XbGsChTe4go", 1999), KnownVideo("6KnRLJZ0ZRw", 1995),
+    KnownVideo("eBCRc2Zk6hA", 2000), KnownVideo("dQ1ribkayAU", 2008),
+    KnownVideo("lp-EO5I60KA", 2009), KnownVideo("kJQP7kiF5Fk", 2006),
+    KnownVideo("9bZkp7q19f0", 2012), KnownVideo("YQHsXMglC9A", 2015),
+    KnownVideo("OPf0YbXqDm0", 2014), KnownVideo("2Vv-BfVoq4g", 2017),
+    KnownVideo("kPa7bsDwL-c", 2023), KnownVideo("hVlgHmeZjg8", 2021),
+    KnownVideo("W0DW0WCb5ac", 2023), KnownVideo("iWzvlFnyYwE", 2023),
 )
 
 private var currentVideoList: MutableList<ApiVideo> = mutableListOf()
@@ -74,37 +52,97 @@ var duplicateSkipCount = 0
 
 private suspend fun fetchVideosFromApi() {
     Log.d(TAG, "Fetching videos from InnerTube API...")
-    val apiVideos = try {
-        YouTubeSearchService.searchMusicVideos()
-    } catch (e: Exception) {
-        Log.e(TAG, "API search failed", e)
-        emptyList()
-    }
+    val apiVideos = try { YouTubeSearchService.searchMusicVideos() } catch (e: Exception) { emptyList() }
     if (apiVideos.isNotEmpty()) {
         Log.d(TAG, "Got ${apiVideos.size} from API")
-        currentVideoList.clear()
-        currentVideoList.addAll(apiVideos)
+        currentVideoList.clear(); currentVideoList.addAll(apiVideos)
     } else {
         Log.w(TAG, "Using fallback (${fallbackVideoList.size} videos)")
-        currentVideoList.clear()
-        currentVideoList.addAll(fallbackVideoList.map { ApiVideo(it.id, it.year, 0, "") })
+        currentVideoList.clear(); currentVideoList.addAll(fallbackVideoList.map { ApiVideo(it.id, it.year, 0, "") })
     }
 }
 
 private fun pickCandidate(difficulty: Difficulty): ApiVideo? {
-    val pool = currentVideoList.filter {
-        it.year in difficulty.yearRangeStart..difficulty.yearRangeEnd
-    }
+    val pool = currentVideoList.filter { it.year in difficulty.yearRangeStart..difficulty.yearRangeEnd }
     if (pool.isEmpty()) return null
     val unplayed = pool.filter { it.id !in playedVideoIds }
     if (unplayed.isEmpty()) {
         Log.d(TAG, "All ${pool.size} videos played — resetting session")
-        playedVideoIds.clear()
-        duplicateSkipCount = 0
+        playedVideoIds.clear(); duplicateSkipCount = 0
         return pool.random()
     }
     return unplayed.random()
 }
+
+// ── Multiplayer guess row data ──────────────────────────────────────────
+
+data class PlayerGuessRow(
+    val playerName: String,
+    var hasGuessed: Boolean = false,
+    var resultText: String? = null,
+    var resultColor: Int = 0,
+)
+
+class PlayerGuessAdapter(
+    val rows: MutableList<PlayerGuessRow>,
+    private val onGuess: (playerIndex: Int, guessedYear: Int) -> Unit,
+) : RecyclerView.Adapter<PlayerGuessAdapter.VH>() {
+
+    class VH(val binding: ItemPlayerGuessBinding) : RecyclerView.ViewHolder(binding.root)
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val b = ItemPlayerGuessBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return VH(b)
+    }
+
+    override fun getItemCount(): Int = rows.size
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val row = rows[position]
+        val b = holder.binding
+
+        b.textViewPlayerName.text = row.playerName
+        b.editTextPlayerGuess.isEnabled = !row.hasGuessed
+        b.buttonPlayerGuess.isEnabled = !row.hasGuessed
+        b.editTextPlayerGuess.setText("")
+
+        if (row.resultText != null) {
+            b.textViewPlayerResult.text = row.resultText
+            b.textViewPlayerResult.visibility = View.VISIBLE
+            b.textViewPlayerResult.setTextColor(row.resultColor)
+        } else {
+            b.textViewPlayerResult.visibility = View.GONE
+        }
+
+        b.buttonPlayerGuess.setOnClickListener {
+            val text = b.editTextPlayerGuess.text.toString().trim()
+            val year = text.toIntOrNull()
+            if (year == null || year !in 1960..2025) {
+                Toast.makeText(b.root.context, R.string.error_invalid_year, Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            onGuess(position, year)
+        }
+    }
+
+    fun markGuessed(pos: Int, text: String, color: Int) {
+        if (pos in rows.indices) {
+            rows[pos].hasGuessed = true
+            rows[pos].resultText = text
+            rows[pos].resultColor = color
+            notifyItemChanged(pos)
+        }
+    }
+
+    fun resetAll() {
+        rows.forEach { it.hasGuessed = false; it.resultText = null }
+        notifyDataSetChanged()
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FRAGMENT
+// ═══════════════════════════════════════════════════════════════════════════════
 
 class VideoPlayerFragment : Fragment() {
 
@@ -121,16 +159,12 @@ class VideoPlayerFragment : Fragment() {
     private var countdownJob: Job? = null
     private var loadVideoJob: Job? = null
 
-    // ── Multiplayer state ────────────────────────────────────────────────────
+    // ── Multiplayer state (simultaneous guessing) ────────────────────────────
     private var isMultiplayer = false
     private var mpPlayerNames: List<String> = emptyList()
-    private var mpCurrentIndex = 0
-    /** How many distinct players have submitted a guess for the current video. */
-    private var mpGuessedThisRound = 0
-
-    private fun currentPlayerName(): String =
-        if (isMultiplayer && mpPlayerNames.isNotEmpty()) mpPlayerNames[mpCurrentIndex]
-        else ""
+    /** Number of players who haven't guessed the current video yet */
+    private var mpRemaining = 0
+    private var playerAdapter: PlayerGuessAdapter? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -139,21 +173,15 @@ class VideoPlayerFragment : Fragment() {
             if (!names.isNullOrEmpty()) {
                 isMultiplayer = true
                 mpPlayerNames = names
-                mpCurrentIndex = 0
-                mpGuessedThisRound = 0
-                // Seed MultiPlayerManager with these players
                 MultiPlayerManager.clear()
-                names.forEach { name ->
-                    if (name.isNotBlank()) MultiPlayerManager.addPlayer(name)
-                }
+                names.forEach { if (it.isNotBlank()) MultiPlayerManager.addPlayer(it) }
+                mpRemaining = names.size
             }
         }
     }
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?,
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?,
     ): View {
         _binding = FragmentVideoPlayerBinding.inflate(inflater, container, false)
         return binding.root
@@ -164,11 +192,16 @@ class VideoPlayerFragment : Fragment() {
 
         setupListeners()
         setupYouTubePlayer()
-        updateMultiplayerUI()
+
+        if (isMultiplayer) {
+            setupMultiplayerUI()
+        }
 
         lifecycleScope.launch { fetchVideosFromApi() }
 
-        updateScoreDisplay()
+        if (!isMultiplayer) {
+            updateScoreDisplay()
+        }
         binding.progressBar.visibility = View.VISIBLE
     }
 
@@ -183,7 +216,9 @@ class VideoPlayerFragment : Fragment() {
 
     fun setDifficulty(difficulty: Difficulty) { currentDifficulty = difficulty }
 
-    // ── UI Setup ────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LISTENERS
+    // ═══════════════════════════════════════════════════════════════════════════
 
     private fun setupListeners() {
         binding.buttonGuess.setOnClickListener { submitGuess() }
@@ -200,14 +235,7 @@ class VideoPlayerFragment : Fragment() {
             }
         })
 
-        binding.buttonNextVideo.setOnClickListener {
-            if (isMultiplayer && mpGuessedThisRound < mpPlayerNames.size) {
-                // More players need to guess the current video
-                advanceToNextPlayer()
-            } else {
-                loadNextVideo()
-            }
-        }
+        binding.buttonNextVideo.setOnClickListener { loadNextVideo() }
 
         // Video overlay toggle
         var overlayVisible = false
@@ -225,9 +253,7 @@ class VideoPlayerFragment : Fragment() {
         lifecycle.addObserver(binding.youtubePlayerView)
 
         val options = IFramePlayerOptions.Builder(requireContext())
-            .controls(1)
-            .fullscreen(1)
-            .build()
+            .controls(1).fullscreen(1).build()
 
         binding.youtubePlayerView.initialize(object : AbstractYouTubePlayerListener() {
             override fun onReady(yp: YouTubePlayer) {
@@ -244,9 +270,8 @@ class VideoPlayerFragment : Fragment() {
                 if (state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.PLAYING) {
                     errorRetryCount = 0
                     Log.d(TAG, "Playing: ${currentVideo?.id}")
-                    binding.editTextGuess.isEnabled = true
-                    binding.editTextGuess.requestFocus()
-                    if (currentDifficulty.hintEnabled) showHint()
+                    enableGuessing()
+                    if (currentDifficulty.hintEnabled && !isMultiplayer) showHint()
                 }
             }
 
@@ -270,9 +295,7 @@ class VideoPlayerFragment : Fragment() {
                         Log.d(TAG, "Auto-switching to: ${candidate.id}")
                         currentVideo = candidate
                         playedVideoIds.add(candidate.id)
-                        try {
-                            youTubePlayer?.loadVideo(candidate.id, 0f)
-                        } catch (_: Exception) {}
+                        try { youTubePlayer?.loadVideo(candidate.id, 0f) } catch (_: Exception) {}
                     } else {
                         Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_LONG).show()
                         binding.buttonNextVideo.visibility = View.VISIBLE
@@ -283,7 +306,80 @@ class VideoPlayerFragment : Fragment() {
         }, options)
     }
 
-    // ── Hint System ─────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MULTIPLAYER (simultaneous guessing — each player has own input row)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private fun setupMultiplayerUI() {
+        // Hide single-player guess UI
+        binding.editTextGuess.visibility = View.GONE
+        binding.buttonGuess.visibility = View.GONE
+        binding.buttonToggleVideo.visibility = View.GONE
+
+        // Show leaderboard
+        binding.textViewLeaderboard.visibility = View.VISIBLE
+
+        // Build RecyclerView
+        val rows = mpPlayerNames.map { PlayerGuessRow(playerName = it) }.toMutableList()
+        playerAdapter = PlayerGuessAdapter(rows) { idx, year -> onMultiplayerGuess(idx, year) }
+
+        binding.recyclerViewPlayers.apply {
+            visibility = View.VISIBLE
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = playerAdapter
+        }
+
+        updateScoreDisplay()
+        refreshLeaderboard()
+    }
+
+    private fun onMultiplayerGuess(playerIndex: Int, guessedYear: Int) {
+        val video = currentVideo ?: return
+        val playerName = mpPlayerNames[playerIndex]
+
+        MultiPlayerManager.recordGuess(playerName, guessedYear, video.year, currentDifficulty)
+        val player = MultiPlayerManager.allPlayers.find { it.name == playerName }
+        val result = player?.guessResult ?: ScoreManager.evaluateGuess(guessedYear, video.year, currentDifficulty)
+
+        val isCorrect = result.isCorrect
+        val points = result.pointsEarned
+        val color = ResourcesCompat.getColor(
+            resources, if (isCorrect) R.color.green_correct else R.color.red_wrong, null
+        )
+
+        val resultMsg = buildString {
+            append(getString(result.messageResId, *result.messageArgs.toTypedArray()))
+            if (points > 0) append("\n+${points} poeng")
+        }
+
+        playerAdapter?.markGuessed(playerIndex, resultMsg, color)
+        mpRemaining = maxOf(mpRemaining - 1, 0)
+        refreshLeaderboard()
+
+        if (mpRemaining <= 0) {
+            binding.buttonNextVideo.text = getString(R.string.next_video)
+            binding.buttonNextVideo.visibility = View.VISIBLE
+        }
+    }
+
+    private fun refreshLeaderboard() {
+        val text = buildString {
+            MultiPlayerManager.getLeaderboard().forEachIndexed { i, p ->
+                when (i) {
+                    0 -> append("🥇 ")
+                    1 -> append("🥈 ")
+                    2 -> append("🥉 ")
+                    else -> append("${i + 1}. ")
+                }
+                append("${p.name} — ${p.score} poeng\n")
+            }
+        }
+        binding.textViewLeaderboard.text = text
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HINTS (single-player only)
+    // ═══════════════════════════════════════════════════════════════════════════
 
     private fun showHint() {
         currentVideo?.let { video ->
@@ -296,60 +392,14 @@ class VideoPlayerFragment : Fragment() {
         }
     }
 
-    // ── Multiplayer UI ──────────────────────────────────────────────────────
-
-    private fun updateMultiplayerUI() {
-        if (isMultiplayer) {
-            binding.textViewCurrentPlayer.text = getString(R.string.turn_of, currentPlayerName())
-            binding.textViewCurrentPlayer.visibility = View.VISIBLE
-            binding.textViewLeaderboardLabel.visibility = View.VISIBLE
-            binding.textViewLeaderboard.visibility = View.VISIBLE
-            refreshLeaderboard()
-        } else {
-            binding.textViewCurrentPlayer.visibility = View.GONE
-            binding.textViewLeaderboardLabel.visibility = View.GONE
-            binding.textViewLeaderboard.visibility = View.GONE
-        }
-    }
-
-    private fun refreshLeaderboard() {
-        if (!isMultiplayer) return
-        val players = MultiPlayerManager.getLeaderboard()
-        val sb = StringBuilder()
-        players.forEachIndexed { i, p ->
-            when (i) {
-                0 -> sb.append("🥇 ")
-                1 -> sb.append("🥈 ")
-                2 -> sb.append("🥉 ")
-                else -> sb.append("${i + 1}. ")
-            }
-            sb.append("${p.name} — ${p.score} poeng")
-            if (p.name == currentPlayerName()) sb.append(" ◀")
-            sb.append("\n")
-        }
-        binding.textViewLeaderboard.text = sb.toString()
-    }
-
-    private fun advanceToNextPlayer() {
-        mpCurrentIndex = (mpCurrentIndex + 1) % mpPlayerNames.size
-        hasGuessedThisRound = false
-        binding.textViewCurrentPlayer.text = getString(R.string.turn_of, currentPlayerName())
-        binding.textViewFeedback.visibility = View.GONE
-        binding.textViewSongYear.visibility = View.GONE
-        binding.editTextGuess.isEnabled = true
-        binding.editTextGuess.setText("")
-        binding.editTextGuess.requestFocus()
-        binding.buttonGuess.isEnabled = false
-        binding.buttonNextVideo.visibility = View.GONE
-        refreshLeaderboard()
-    }
-
-    // ── Game Flow ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════════
+    // GAME FLOW
+    // ═══════════════════════════════════════════════════════════════════════════
 
     private fun submitGuess() {
-        if (hasGuessedThisRound) return
+        // Single-player only
+        if (isMultiplayer || hasGuessedThisRound) return
         val guessText = binding.editTextGuess.text.toString().trim()
-
         if (guessText.length != 4) {
             Toast.makeText(requireContext(), R.string.error_invalid_year, Toast.LENGTH_SHORT).show()
             return
@@ -365,17 +415,7 @@ class VideoPlayerFragment : Fragment() {
         binding.editTextGuess.isEnabled = false
         binding.buttonGuess.isEnabled = false
 
-        val result: ScoreManager.GuessResult
-
-        if (isMultiplayer) {
-            val playerName = currentPlayerName()
-            MultiPlayerManager.recordGuess(playerName, guessedYear, video.year, currentDifficulty)
-            val player = MultiPlayerManager.allPlayers.find { it.name == playerName }
-            result = player?.guessResult ?: ScoreManager.evaluateGuess(guessedYear, video.year, currentDifficulty)
-            mpGuessedThisRound++
-        } else {
-            result = ScoreManager.evaluateGuess(guessedYear, video.year, currentDifficulty)
-        }
+        val result = ScoreManager.evaluateGuess(guessedYear, video.year, currentDifficulty)
 
         val fbText = if (result.pointsEarned > 0) {
             "${getString(result.messageResId, *result.messageArgs.toTypedArray())}\n${getString(R.string.score_earned, result.pointsEarned)}"
@@ -384,29 +424,18 @@ class VideoPlayerFragment : Fragment() {
         }
         binding.textViewFeedback.text = fbText
         binding.textViewFeedback.setTextColor(
-            resources.getColor(if (result.isCorrect) R.color.green_correct else R.color.red_wrong, null)
+            ResourcesCompat.getColor(
+                resources, if (result.isCorrect) R.color.green_correct else R.color.red_wrong, null
+            )
         )
         binding.textViewFeedback.visibility = View.VISIBLE
 
         binding.textViewSongYear.text = getString(R.string.song_release_year, video.year)
         binding.textViewSongYear.visibility = View.VISIBLE
 
-        // Show appropriate next button
-        val allHaveGuessed = !isMultiplayer || mpGuessedThisRound >= mpPlayerNames.size
-        if (isMultiplayer && !allHaveGuessed) {
-            binding.buttonNextVideo.text = getString(R.string.next_player)
-        } else if (isMultiplayer && allHaveGuessed) {
-            binding.buttonNextVideo.text = getString(R.string.next_video)
-            // Reset for next round
-            mpGuessedThisRound = 0
-            mpCurrentIndex = 0
-        } else {
-            binding.buttonNextVideo.text = getString(R.string.next_video)
-        }
+        binding.buttonNextVideo.text = getString(R.string.next_video)
         binding.buttonNextVideo.visibility = View.VISIBLE
-
         updateScoreDisplay()
-        if (isMultiplayer) refreshLeaderboard()
     }
 
     private fun loadNextVideo() {
@@ -426,6 +455,13 @@ class VideoPlayerFragment : Fragment() {
 
                 currentVideo = candidate
                 playedVideoIds.add(candidate.id)
+
+                // Reset multiplayer state for new video
+                if (isMultiplayer) {
+                    mpRemaining = mpPlayerNames.size
+                    playerAdapter?.resetAll()
+                    binding.buttonNextVideo.visibility = View.GONE
+                }
 
                 if (isPlayerReady) {
                     beginCountdown(candidate.id)
@@ -468,20 +504,17 @@ class VideoPlayerFragment : Fragment() {
         binding.buttonGuess.isEnabled = false
         hasGuessedThisRound = false
         errorRetryCount = 0
+    }
 
-        if (isMultiplayer) {
-            mpGuessedThisRound = 0
-            mpCurrentIndex = 0
-            // Show first player's turn
-            binding.textViewCurrentPlayer.text = getString(R.string.turn_of, currentPlayerName())
-        }
+    private fun enableGuessing() {
+        if (isMultiplayer) return  // RecyclerView handles enabling per-row
+        binding.editTextGuess.isEnabled = true
+        binding.editTextGuess.requestFocus()
     }
 
     private fun updateScoreDisplay() {
         if (isMultiplayer) {
-            binding.textViewScore.text = buildString {
-                append("Runde: ${ScoreManager.guessCount + 1}")
-            }
+            binding.textViewScore.text = "Flerspiller"
         } else {
             binding.textViewScore.text = buildString {
                 append("Score: ${ScoreManager.score}")

@@ -44,35 +44,19 @@
         app:layout_constraintStart_toStartOf="@+id/videoOverlay"
         app:layout_constraintTop_toTopOf="@+id/videoOverlay" />
 
-    <!-- Current player (multiplayer) + Score bar -->
-    <TextView
-        android:id="@+id/textViewCurrentPlayer"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="8dp"
-        android:textSize="14sp"
-        android:textColor="@color/amber_accent"
-        android:textStyle="bold"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/youtube_player_view"
-        tools:text="Ola sin tur"
-        tools:visibility="visible" />
-
+    <!-- Score + Controls row -->
     <TextView
         android:id="@+id/textViewScore"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="8dp"
         android:textColor="@color/amber_accent"
         android:textSize="14sp"
         android:textStyle="bold"
         app:layout_constraintEnd_toStartOf="@+id/buttonToggleVideo"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewCurrentPlayer"
+        app:layout_constraintTop_toBottomOf="@+id/youtube_player_view"
         tools:text="Score: 0  |  Streak: 0" />
 
     <com.google.android.material.button.MaterialButton
@@ -80,7 +64,7 @@
         style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="8dp"
         android:layout_marginEnd="12dp"
         android:minWidth="0dp"
         android:minHeight="0dp"
@@ -90,24 +74,9 @@
         android:textSize="11sp"
         android:textColor="@color/muted_text"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewCurrentPlayer" />
+        app:layout_constraintTop_toBottomOf="@+id/youtube_player_view" />
 
-    <!-- Leaderboard (multiplayer) -->
-    <TextView
-        android:id="@+id/textViewLeaderboardLabel"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:layout_marginHorizontal="16dp"
-        android:text="🏆 Ledertavle"
-        android:textSize="12sp"
-        android:textColor="@color/muted_text"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewScore"
-        tools:visibility="visible" />
-
+    <!-- Leaderboard (multiplayer – always visible when mode is active) -->
     <TextView
         android:id="@+id/textViewLeaderboard"
         android:layout_width="0dp"
@@ -121,16 +90,31 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewLeaderboardLabel"
+        app:layout_constraintTop_toBottomOf="@+id/textViewScore"
         tools:text="🥇 Ola — 50 poeng\n🥈 Kari — 30 poeng"
         tools:visibility="visible" />
+
+    <!-- Multiplayer player guess list (hidden in single-player) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewPlayers"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:layout_marginHorizontal="16dp"
+        android:visibility="gone"
+        android:overScrollMode="never"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewLeaderboard"
+        tools:visibility="visible"
+        tools:listitem="@layout/item_player_guess" />
 
     <!-- Countdown (before video starts) -->
     <TextView
         android:id="@+id/textViewCountdown"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="12dp"
         android:textSize="32sp"
         android:textStyle="bold"
         android:textColor="@color/amber_accent"
@@ -138,7 +122,7 @@
         android:visibility="visible"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewLeaderboard"
+        app:layout_constraintTop_toBottomOf="@+id/recyclerViewPlayers"
         tools:text="3" />
 
     <!-- Hint text -->
@@ -157,7 +141,7 @@
         app:layout_constraintTop_toBottomOf="@+id/textViewCountdown"
         tools:text="Tiår: 2000-tallet | Visninger: 45M" />
 
-    <!-- Guess input area -->
+    <!-- SINGLE-PLAYER guess UI (hidden in multiplayer) -->
     <EditText
         android:id="@+id/editTextGuess"
         android:layout_width="0dp"
@@ -223,7 +207,7 @@
         app:layout_constraintTop_toBottomOf="@+id/textViewFeedback"
         tools:text="Utgitt i: 2005" />
 
-    <!-- Next Video / Next Player button -->
+    <!-- Next Video button -->
     <Button
         android:id="@+id/buttonNextVideo"
         style="@style/Widget.Material3.Button.OutlinedButton"
