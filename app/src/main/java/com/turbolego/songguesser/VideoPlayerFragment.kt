@@ -375,10 +375,11 @@ class VideoPlayerFragment : Fragment() {
         adapter.revealAll(results)
         refreshLeaderboard()
 
-        // Show "Neste video" button
+        // Show "Neste video" button with year
         binding.buttonRevealAnswers.visibility = View.GONE
-        binding.buttonNextVideo.text = getString(R.string.next_video)
+        binding.buttonNextVideo.text = "${video!!.year} — ${getString(R.string.next_video)}"
         binding.buttonNextVideo.visibility = View.VISIBLE
+        binding.textViewSongYear.visibility = View.GONE
     }
 
     private fun refreshLeaderboard() {
@@ -450,9 +451,9 @@ class VideoPlayerFragment : Fragment() {
         binding.textViewFeedback.visibility = View.VISIBLE
 
         binding.textViewSongYear.text = getString(R.string.song_release_year, video.year)
-        binding.textViewSongYear.visibility = View.VISIBLE
+        binding.textViewSongYear.visibility = View.GONE
 
-        binding.buttonNextVideo.text = getString(R.string.next_video)
+        binding.buttonNextVideo.text = "${video.year} — ${getString(R.string.next_video)}"
         binding.buttonNextVideo.visibility = View.VISIBLE
         updateScoreDisplay()
     }
