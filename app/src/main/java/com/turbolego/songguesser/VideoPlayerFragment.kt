@@ -17,22 +17,16 @@ import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFram
 import com.turbolego.songguesser.databinding.FragmentVideoPlayerBinding
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 private const val TAG = "VideoPlayerFragment"
+private const val MAX_RETRY_ATTEMPTS = 5
 
-/** A known video with its release year (fallback). */
 data class KnownVideo(val id: String, val year: Int)
-
-/** A video with metadata from API or fallback. */
 data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
 
-/**
- * Fallback list of popular music videos with known release years.
- * Used when InnerTube search fails.
- */
 private val fallbackVideoList = listOf(
     KnownVideo("dQw4w9WgXcQ", 1987),
     KnownVideo("ZbZSe6N_BXs", 1985),
@@ -44,42 +38,44 @@ private val fallbackVideoList = listOf(
     KnownVideo("hcwnL9a61o0", 1999),
     KnownVideo("tF3iR0rN-8g", 1991),
     KnownVideo("q3zKKtYsEj8", 1994),
-    KnownVideo("ZmDBbnMFK70", 1999),
+    KnownVideo("ZmDBbnMqK70", 1999),
     KnownVideo("YR5W3FKE88Q", 1998),
     KnownVideo("XbGsChTe4go", 1999),
     KnownVideo("6KnRLJZ0ZRw", 1995),
     KnownVideo("eBCRc2Zk6hA", 2000),
     KnownVideo("dQ1ribkayAU", 2008),
     KnownVideo("lp-EO5I60KA", 2009),
-    KnownVideo("kJQP7kiw5Fk", 2006),
+    KnownVideo("kJQP7kiF5Fk", 2006),
     KnownVideo("9bZkp7q19f0", 2012),
     KnownVideo("YQHsXMglC9A", 2015),
     KnownVideo("OPf0YbXqDm0", 2014),
     KnownVideo("2Vv-BfVoq4g", 2017),
-    KnownVideo("Rl6bfz9xYio", 2023),
-    KnownVideo("kPa7bsKwL-c", 2023),
+    KnownVideo("R1Bfz9xYio", 2023),
+    KnownVideo("kPa7bsDwL-c", 2023),
     KnownVideo("hVlgHmeZjg8", 2021),
-    KnownVideo("ffxKSjUwZdU", 2021),
-    KnownVideo("QOQZRLdv3s0", 2018),
-    KnownVideo("uelHwf8o7_U", 2019),
+    KnownVideo("ffxKSjUtwZU", 2021),
+    KnownVideo("QOZZRLdv3s0", 2018),
+    KnownVideo("uelHdwf8o7U", 2019),
     KnownVideo("Z09lZZd7aJs", 2020),
     KnownVideo("nPLV7lGczsE", 2017),
     KnownVideo("YVkKvmAVWHE", 2019),
     KnownVideo("YBHQbu5FpLk", 2020),
-    KnownVideo("1Q9qGcPp3b4", 2021),
-    KnownVideo("456sX5lPcTQ", 2021),
+    KnownVideo("1q9XplKp3G4", 2021),
+    KnownVideo("4t6sX5dD4cT", 2021),
     KnownVideo("b4Bj7Zb-YDc", 2021),
-    KnownVideo("pBk4NYvBMJc", 2022),
-    KnownVideo("W0DM0WCb5ac", 2023),
-    KnownVideo("iWzVlFouYwE", 2023),
+    KnownVideo("pBk4LyvAMJc", 2022),
+    KnownVideo("W0DW0WCb5ac", 2023),
+    KnownVideo("iWzvlFnyYwE", 2023),
 )
 
-/** Current video pool. */
 private var currentVideoList: MutableList<ApiVideo> = mutableListOf()
 
-/**
- * Fetches music videos from InnerTube API, falling back to hardcoded list.
- */
+/** Tracks videos played this session — prevents duplicates. */
+val playedVideoIds: MutableSet<String> = mutableSetOf()
+
+/** How many times a duplicate was blocked. Resets per session. */
+var duplicateSkipCount = 0
+
 private suspend fun fetchVideosFromApi() {
     Log.d(TAG, "Fetching videos from InnerTube API...")
     val apiVideos = try {
@@ -89,7 +85,7 @@ private suspend fun fetchVideosFromApi() {
         emptyList()
     }
     if (apiVideos.isNotEmpty()) {
-        Log.d(TAG, "Got ${apiVideos.size} videos from API")
+        Log.d(TAG, "Got ${apiVideos.size} from API")
         currentVideoList.clear()
         currentVideoList.addAll(apiVideos)
     } else {
@@ -97,6 +93,27 @@ private suspend fun fetchVideosFromApi() {
         currentVideoList.clear()
         currentVideoList.addAll(fallbackVideoList.map { ApiVideo(it.id, it.year, 0, "") })
     }
+}
+
+/**
+ * Pick a video that matches difficulty and hasn't been played yet.
+ * Returns null if all played (resets session tracking).
+ */
+private fun pickCandidate(difficulty: Difficulty): ApiVideo? {
+    val pool = currentVideoList.filter {
+        it.year in difficulty.yearRangeStart..difficulty.yearRangeEnd
+    }
+    if (pool.isEmpty()) return null
+
+    val unplayed = pool.filter { it.id !in playedVideoIds }
+    if (unplayed.isEmpty()) {
+        Log.d(TAG, "All ${pool.size} videos played — resetting session")
+        playedVideoIds.clear()
+        duplicateSkipCount = 0
+        return pool.random()
+    }
+
+    return unplayed.random()
 }
 
 class VideoPlayerFragment : Fragment() {
@@ -109,6 +126,7 @@ class VideoPlayerFragment : Fragment() {
     private var isPlayerReady = false
     private var hasGuessedThisRound = false
     private var currentDifficulty: Difficulty = Difficulty.MEDIUM
+    private var errorRetryCount = 0
 
     private var countdownJob: Job? = null
     private var loadVideoJob: Job? = null
@@ -116,7 +134,7 @@ class VideoPlayerFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         _binding = FragmentVideoPlayerBinding.inflate(inflater, container, false)
         return binding.root
@@ -128,9 +146,7 @@ class VideoPlayerFragment : Fragment() {
         setupListeners()
         setupYouTubePlayer()
 
-        lifecycleScope.launch {
-            fetchVideosFromApi()
-        }
+        lifecycleScope.launch { fetchVideosFromApi() }
 
         updateScoreDisplay()
         binding.progressBar.visibility = View.VISIBLE
@@ -145,29 +161,17 @@ class VideoPlayerFragment : Fragment() {
         _binding = null
     }
 
-    // ── Difficulty ──────────────────────────────────────────────────────────
-
-    fun setDifficulty(difficulty: Difficulty) {
-        currentDifficulty = difficulty
-    }
+    fun setDifficulty(difficulty: Difficulty) { currentDifficulty = difficulty }
 
     // ── UI Setup ────────────────────────────────────────────────────────────
 
     private fun setupListeners() {
-        // Guess button
-        binding.buttonGuess.setOnClickListener {
-            submitGuess()
-        }
+        binding.buttonGuess.setOnClickListener { submitGuess() }
 
-        // Enter key in edit text
         binding.editTextGuess.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                submitGuess()
-                true
-            } else false
+            if (actionId == EditorInfo.IME_ACTION_DONE) { submitGuess(); true } else false
         }
 
-        // Enable guess button when text is present
         binding.editTextGuess.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -176,10 +180,7 @@ class VideoPlayerFragment : Fragment() {
             }
         })
 
-        // Next video
-        binding.buttonNextVideo.setOnClickListener {
-            loadRandomVideo()
-        }
+        binding.buttonNextVideo.setOnClickListener { loadNextVideo() }
     }
 
     private fun setupYouTubePlayer() {
@@ -194,18 +195,17 @@ class VideoPlayerFragment : Fragment() {
             override fun onReady(yp: YouTubePlayer) {
                 youTubePlayer = yp
                 isPlayerReady = true
-                if (currentVideo == null) loadRandomVideo()
-                else startCountdown(currentVideo!!.id)
+                if (currentVideo == null) loadNextVideo()
+                else beginCountdown(currentVideo!!.id)
             }
 
             override fun onStateChange(
                 yp: YouTubePlayer,
-                state: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState
+                state: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState,
             ) {
                 if (state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.PLAYING) {
-                    val vid = currentVideo?.id ?: "unknown"
-                    Log.d(TAG, "Video started: $vid")
-                    // Enable guessing when video starts
+                    errorRetryCount = 0
+                    Log.d(TAG, "Playing: ${currentVideo?.id}")
                     binding.editTextGuess.isEnabled = true
                     binding.editTextGuess.requestFocus()
                     if (currentDifficulty.hintEnabled) showHint()
@@ -214,13 +214,33 @@ class VideoPlayerFragment : Fragment() {
 
             override fun onError(
                 yp: YouTubePlayer,
-                error: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError
+                error: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError,
             ) {
-                Log.e(TAG, "Player error: ${error.name}")
-                binding.progressBar.visibility = View.GONE
+                Log.e(TAG, "Player error: ${error.name} (attempt ${errorRetryCount + 1})")
+                errorRetryCount++
+
+                if (errorRetryCount >= MAX_RETRY_ATTEMPTS) {
+                    Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_LONG).show()
+                    binding.buttonNextVideo.visibility = View.VISIBLE
+                    binding.progressBar.visibility = View.GONE
+                    return
+                }
+
+                // Silently swap to next candidate — user never sees the dead video
                 lifecycleScope.launch {
-                    delay(1.5.seconds)
-                    loadRandomVideo()
+                    val candidate = pickCandidate(currentDifficulty)
+                    if (candidate != null) {
+                        Log.d(TAG, "Auto-switching to: ${candidate.id}")
+                        currentVideo = candidate
+                        playedVideoIds.add(candidate.id)
+                        try {
+                            youTubePlayer?.loadVideo(candidate.id, 0f)
+                        } catch (_: Exception) {}
+                    } else {
+                        Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_LONG).show()
+                        binding.buttonNextVideo.visibility = View.VISIBLE
+                        binding.progressBar.visibility = View.GONE
+                    }
                 }
             }
         }, options)
@@ -231,12 +251,6 @@ class VideoPlayerFragment : Fragment() {
     private fun showHint() {
         currentVideo?.let { video ->
             val decade = (video.year / 10) * 10
-            val viewsText = when {
-                video.views >= 1_000_000_000L -> "${video.views / 1_000_000_000} milliarder"
-                video.views >= 1_000_000L -> "${video.views / 1_000_000}M"
-                video.views >= 1_000L -> "${video.views / 1_000}K"
-                else -> "${video.views}"
-            }
             binding.textViewHint.text = getString(R.string.hint_decade, decade)
             if (video.views > 0) {
                 binding.textViewHint.append(" | ${getString(R.string.hint_views, video.views)}")
@@ -249,13 +263,12 @@ class VideoPlayerFragment : Fragment() {
 
     private fun submitGuess() {
         if (hasGuessedThisRound) return
-
         val guessText = binding.editTextGuess.text.toString().trim()
+
         if (guessText.length != 4) {
             Toast.makeText(requireContext(), R.string.error_invalid_year, Toast.LENGTH_SHORT).show()
             return
         }
-
         val guessedYear = guessText.toIntOrNull()
         if (guessedYear == null || guessedYear !in 1960..2025) {
             Toast.makeText(requireContext(), R.string.error_invalid_year, Toast.LENGTH_SHORT).show()
@@ -267,64 +280,46 @@ class VideoPlayerFragment : Fragment() {
         binding.editTextGuess.isEnabled = false
         binding.buttonGuess.isEnabled = false
 
-        // Evaluate
         val result = ScoreManager.evaluateGuess(guessedYear, video.year, currentDifficulty)
 
-        // Show feedback
         val fbText = if (result.pointsEarned > 0) {
-            val feedback = getString(result.messageResId, *result.messageArgs.toTypedArray())
-            "$feedback\n${getString(R.string.score_earned, result.pointsEarned)}"
+            "${getString(result.messageResId, *result.messageArgs.toTypedArray())}\n${getString(R.string.score_earned, result.pointsEarned)}"
         } else {
             getString(result.messageResId, *result.messageArgs.toTypedArray())
         }
         binding.textViewFeedback.text = fbText
         binding.textViewFeedback.setTextColor(
-            if (result.isCorrect) resources.getColor(R.color.green_correct, null)
-            else resources.getColor(R.color.red_wrong, null)
+            resources.getColor(if (result.isCorrect) R.color.green_correct else R.color.red_wrong, null)
         )
         binding.textViewFeedback.visibility = View.VISIBLE
 
-        // Show the actual year
         binding.textViewSongYear.text = getString(R.string.song_release_year, video.year)
         binding.textViewSongYear.visibility = View.VISIBLE
-
-        // Show next button
         binding.buttonNextVideo.visibility = View.VISIBLE
 
         updateScoreDisplay()
     }
 
-    private fun loadRandomVideo() {
-        Log.d(TAG, "Loading random video (${currentVideoList.size} in pool)")
-
-        // Reset UI
-        binding.progressBar.visibility = View.VISIBLE
-        binding.textViewCountdown.visibility = View.GONE
-        binding.textViewHint.visibility = View.GONE
-        binding.textViewSongYear.visibility = View.GONE
-        binding.textViewFeedback.visibility = View.GONE
-        binding.buttonNextVideo.visibility = View.GONE
-        binding.editTextGuess.isEnabled = false
-        binding.editTextGuess.setText("")
-        binding.buttonGuess.isEnabled = false
-        hasGuessedThisRound = false
+    private fun loadNextVideo() {
+        Log.d(TAG, "Loading next video (pool=${currentVideoList.size})")
+        resetRoundUI()
 
         countdownJob?.cancel()
         loadVideoJob?.cancel()
 
         loadVideoJob = lifecycleScope.launch {
             try {
-                // Filter by difficulty range
-                val filtered = currentVideoList.filter {
-                    it.year in currentDifficulty.yearRangeStart..currentDifficulty.yearRangeEnd
+                val candidate = pickCandidate(currentDifficulty)
+                if (candidate == null) {
+                    Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
+                    return@launch
                 }
-                val pool = if (filtered.isEmpty()) currentVideoList else filtered
-                val video = pool[Random.nextInt(pool.size)]
-                Log.d(TAG, "Selected: ${video.id} (${video.year})")
-                currentVideo = video
+
+                currentVideo = candidate
+                playedVideoIds.add(candidate.id)
 
                 if (isPlayerReady) {
-                    startCountdown(video.id)
+                    beginCountdown(candidate.id)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading video", e)
@@ -333,7 +328,7 @@ class VideoPlayerFragment : Fragment() {
         }
     }
 
-    private fun startCountdown(videoId: String) {
+    private fun beginCountdown(videoId: String) {
         binding.textViewCountdown.visibility = View.VISIBLE
         binding.progressBar.visibility = View.GONE
 
@@ -345,20 +340,31 @@ class VideoPlayerFragment : Fragment() {
             binding.textViewCountdown.visibility = View.GONE
             try {
                 youTubePlayer?.loadVideo(videoId, 0f)
-                Log.d(TAG, "Playing: $videoId")
             } catch (e: Exception) {
-                Log.e(TAG, "Error playing video", e)
+                Log.e(TAG, "loadVideo threw", e)
                 Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    private fun resetRoundUI() {
+        binding.progressBar.visibility = View.VISIBLE
+        binding.textViewCountdown.visibility = View.GONE
+        binding.textViewHint.visibility = View.GONE
+        binding.textViewSongYear.visibility = View.GONE
+        binding.textViewFeedback.visibility = View.GONE
+        binding.buttonNextVideo.visibility = View.GONE
+        binding.editTextGuess.isEnabled = false
+        binding.editTextGuess.setText("")
+        binding.buttonGuess.isEnabled = false
+        hasGuessedThisRound = false
+        errorRetryCount = 0
+    }
+
     private fun updateScoreDisplay() {
         binding.textViewScore.text = buildString {
             append("Score: ${ScoreManager.score}")
-            if (ScoreManager.streak > 0) {
-                append("  |  Streak: ${ScoreManager.streak}")
-            }
+            if (ScoreManager.streak > 0) append("  |  Streak: ${ScoreManager.streak}")
         }
     }
 
@@ -374,5 +380,13 @@ class VideoPlayerFragment : Fragment() {
         append("\nRiktige: ${ScoreManager.correctCount} (${(ScoreManager.accuracy * 100).toInt()}%)")
         append("\nHøyeste streak: ${ScoreManager.highStreak}")
         append("\nPoeng totalt: ${ScoreManager.score}")
+        append("\nDuplikater hoppet: $duplicateSkipCount")
+    }
+
+    fun getDuplicateCount(): Int = duplicateSkipCount
+
+    fun resetDuplicateTracker() {
+        duplicateSkipCount = 0
+        playedVideoIds.clear()
     }
 }

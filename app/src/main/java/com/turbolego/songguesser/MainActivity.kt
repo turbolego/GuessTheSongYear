@@ -85,6 +85,18 @@ class MainActivity : AppCompatActivity() {
                 confirmResetScore()
                 true
             }
+            R.id.action_clear_duplicates -> {
+                val count = videoPlayerFragment?.getDuplicateCount() ?: 0
+                AlertDialog.Builder(this)
+                    .setTitle("Fjern duplikat-sporing?")
+                    .setMessage("$count duplikater hoppet over denne økten.\\nMidlertidig nullstill telleren.")
+                    .setPositiveButton("Nullstill") { _, _ ->
+                        videoPlayerFragment?.resetDuplicateTracker()
+                    }
+                    .setNegativeButton("Avbryt", null)
+                    .show()
+                true
+            }
             R.id.action_about -> {
                 showAbout()
                 true

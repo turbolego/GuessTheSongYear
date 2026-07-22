@@ -27,6 +27,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_clear_duplicates"
+        android:title="@string/menu_clear_duplicates"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_about"
         android:title="@string/menu_about"
         app:showAsAction="never" />

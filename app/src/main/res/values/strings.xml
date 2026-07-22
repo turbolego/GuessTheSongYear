@@ -6,6 +6,7 @@
     <string name="menu_difficulty">Vanskelighetsgrad</string>
     <string name="menu_about">Om</string>
     <string name="menu_reset_score">Nullstill poeng</string>
+    <string name="menu_clear_duplicates">Nullstill duplikat-teller</string>
 
     <!-- Difficulty -->
     <string name="difficulty_easy">Lett</string>
@@ -40,4 +41,5 @@
     <string name="error_loading_video">Kunne ikke laste video. Prøv en annen.</string>
     <string name="error_invalid_year">Vennligst skriv inn et gyldig år (1960–2025).</string>
     <string name="error_generic">Noe gikk galt. Prøv igjen.</string>
+    <string name="error_no_videos_left">Ingen flere videoer tilgjengelig. Prøv å oppdatere.</string>
 </resources>
