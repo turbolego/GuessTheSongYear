@@ -42,4 +42,7 @@
     <string name="error_invalid_year">Vennligst skriv inn et gyldig år (1960–2025).</string>
     <string name="error_generic">Noe gikk galt. Prøv igjen.</string>
     <string name="error_no_videos_left">Ingen flere videoer tilgjengelig. Prøv å oppdatere.</string>
+    <string name="overlay_audio_only">🎵 Bare lyd</string>
+    <string name="btn_hide_video">Skjul video</string>
+    <string name="btn_show_video">Vis video</string>
 </resources>

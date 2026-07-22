@@ -18,20 +18,63 @@
         app:showFullScreenButton="true"
         app:enableAutomaticInitialization="false" />
 
+    <!-- Video overlay (toggle to hide video, keep audio) -->
+    <View
+        android:id="@+id/videoOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@color/ink"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@+id/youtube_player_view"
+        app:layout_constraintStart_toStartOf="@+id/youtube_player_view"
+        app:layout_constraintTop_toTopOf="@+id/youtube_player_view"
+        app:layout_constraintBottom_toBottomOf="@+id/youtube_player_view" />
+
+    <TextView
+        android:id="@+id/textViewOverlayLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/overlay_audio_only"
+        android:textColor="@color/muted_text"
+        android:textSize="14sp"
+        android:textStyle="italic"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@+id/videoOverlay"
+        app:layout_constraintEnd_toEndOf="@+id/videoOverlay"
+        app:layout_constraintStart_toStartOf="@+id/videoOverlay"
+        app:layout_constraintTop_toTopOf="@+id/videoOverlay" />
+
     <!-- Score and Streak bar -->
     <TextView
         android:id="@+id/textViewScore"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
+        android:layout_marginStart="16dp"
         android:layout_marginTop="12dp"
         android:textColor="@color/amber_accent"
         android:textSize="14sp"
         android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/buttonToggleVideo"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/youtube_player_view"
         tools:text="Score: 0  |  Streak: 0" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonToggleVideo"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="12dp"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="2dp"
+        android:text="@string/btn_hide_video"
+        android:textSize="11sp"
+        android:textColor="@color/muted_text"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/youtube_player_view" />
 
     <!-- Countdown (before video starts) -->
     <TextView

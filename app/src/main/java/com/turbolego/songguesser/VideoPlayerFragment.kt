@@ -181,6 +181,17 @@ class VideoPlayerFragment : Fragment() {
         })
 
         binding.buttonNextVideo.setOnClickListener { loadNextVideo() }
+
+        // Video overlay toggle
+        var overlayVisible = false
+        binding.buttonToggleVideo.setOnClickListener {
+            overlayVisible = !overlayVisible
+            binding.videoOverlay.visibility = if (overlayVisible) View.VISIBLE else View.GONE
+            binding.textViewOverlayLabel.visibility = if (overlayVisible) View.VISIBLE else View.GONE
+            binding.buttonToggleVideo.text = getString(
+                if (overlayVisible) R.string.btn_show_video else R.string.btn_hide_video
+            )
+        }
     }
 
     private fun setupYouTubePlayer() {
