@@ -109,6 +109,19 @@
         tools:visibility="visible"
         tools:listitem="@layout/item_player_guess" />
 
+    <!-- Reveal answers button (multiplayer) -->
+    <Button
+        android:id="@+id/buttonRevealAnswers"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/btn_reveal_answers"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/recyclerViewPlayers" />
+
     <!-- Countdown (before video starts) -->
     <TextView
         android:id="@+id/textViewCountdown"
@@ -122,7 +135,7 @@
         android:visibility="visible"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/recyclerViewPlayers"
+        app:layout_constraintTop_toBottomOf="@+id/buttonRevealAnswers"
         tools:text="3" />
 
     <!-- Hint text -->

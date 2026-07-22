@@ -71,4 +71,5 @@
     <string name="overlay_audio_only">🎵 Bare lyd</string>
     <string name="btn_hide_video">Skjul video</string>
     <string name="btn_show_video">Vis video</string>
+    <string name="btn_reveal_answers">Vis svar</string>
 </resources>

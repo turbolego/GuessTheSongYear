@@ -12,7 +12,7 @@
         android:id="@+id/textViewPlayerName"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:textSize="14sp"
+        android:textSize="13sp"
         android:textStyle="bold"
         android:textColor="@color/amber_accent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -20,34 +20,14 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:text="Spiller 1" />
 
-    <EditText
-        android:id="@+id/editTextPlayerGuess"
-        android:layout_width="0dp"
-        android:layout_height="40dp"
+    <NumberPicker
+        android:id="@+id/numberPickerYear"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
         android:layout_marginTop="2dp"
-        android:layout_marginEnd="8dp"
-        android:inputType="number"
-        android:maxLength="4"
-        android:hint="@string/guess_hint"
-        android:background="@drawable/input_background"
-        android:paddingHorizontal="12dp"
-        android:textColor="@color/body_text"
-        android:textColorHint="@color/muted_text"
-        android:enabled="false"
-        android:textSize="14sp"
-        app:layout_constraintEnd_toStartOf="@+id/buttonPlayerGuess"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewPlayerName" />
-
-    <Button
-        android:id="@+id/buttonPlayerGuess"
-        android:layout_width="64dp"
-        android:layout_height="40dp"
-        android:layout_marginTop="2dp"
-        android:text="@string/btn_guess"
-        android:enabled="false"
-        android:textSize="12sp"
+        android:descendantFocusability="blocksDescendants"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textViewPlayerName" />
 
     <TextView
@@ -60,7 +40,7 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/editTextPlayerGuess"
+        app:layout_constraintTop_toBottomOf="@+id/numberPickerYear"
         tools:text="Veldig nære! +30 poeng"
         tools:visibility="visible" />
 
