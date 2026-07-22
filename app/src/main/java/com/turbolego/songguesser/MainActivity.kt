@@ -4,6 +4,7 @@ import android.content.DialogInterface
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -15,8 +16,18 @@ import com.turbolego.songguesser.databinding.ActivityMainBinding
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private var videoPlayerFragment: VideoPlayerFragment? = null
+    private var currentFragment: androidx.fragment.app.Fragment? = null
+
     private var currentDifficulty: Difficulty = Difficulty.MEDIUM
+
+    companion object {
+        /** Static access for the VideoPlayerFragment across screens. */
+        var gameFragment: MultiplayerGameFragment? = null
+            private set
+    }
+
+    val videoPlayerFragment: VideoPlayerFragment?
+        get() = currentFragment as? VideoPlayerFragment
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,14 +38,12 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.appBarLayout) { view, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.updatePadding(top = systemBars.top)
+            view.updatePadding(top = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top)
             insets
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.updatePadding(bottom = systemBars.bottom)
+            view.updatePadding(bottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom)
             insets
         }
 
@@ -42,27 +51,16 @@ class MainActivity : AppCompatActivity() {
         supportActionBar?.title = "GuessTheSongYear"
 
         if (savedInstanceState == null) {
-            val fragment = VideoPlayerFragment()
-            videoPlayerFragment = fragment
-            supportFragmentManager.beginTransaction()
-                .replace(R.id.fragment_container, fragment)
-                .commit()
-        } else {
-            videoPlayerFragment = supportFragmentManager
-                .findFragmentById(R.id.fragment_container) as? VideoPlayerFragment
+            navigateToSinglePlayer()
         }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
 
-        // Check current difficulty
-        menu.findItem(R.id.action_difficulty_easy)?.isChecked =
-            currentDifficulty == Difficulty.EASY
-        menu.findItem(R.id.action_difficulty_medium)?.isChecked =
-            currentDifficulty == Difficulty.MEDIUM
-        menu.findItem(R.id.action_difficulty_hard)?.isChecked =
-            currentDifficulty == Difficulty.HARD
+        menu.findItem(R.id.action_difficulty_easy)?.isChecked = currentDifficulty == Difficulty.EASY
+        menu.findItem(R.id.action_difficulty_medium)?.isChecked = currentDifficulty == Difficulty.MEDIUM
+        menu.findItem(R.id.action_difficulty_hard)?.isChecked = currentDifficulty == Difficulty.HARD
 
         return true
     }
@@ -81,6 +79,18 @@ class MainActivity : AppCompatActivity() {
                 setDifficulty(Difficulty.HARD, item)
                 true
             }
+            R.id.action_local_multiplayer -> {
+                navigateToLocalMultiplayer()
+                true
+            }
+            R.id.action_host_game -> {
+                navigateToHostGame()
+                true
+            }
+            R.id.action_join_game -> {
+                navigateToJoinGame()
+                true
+            }
             R.id.action_reset_score -> {
                 confirmResetScore()
                 true
@@ -89,7 +99,7 @@ class MainActivity : AppCompatActivity() {
                 val count = videoPlayerFragment?.getDuplicateCount() ?: 0
                 AlertDialog.Builder(this)
                     .setTitle("Fjern duplikat-sporing?")
-                    .setMessage("$count duplikater hoppet over denne økten.\\nMidlertidig nullstill telleren.")
+                    .setMessage("$count duplikater hoppet over denne økten.\nNullstill telleren.")
                     .setPositiveButton("Nullstill") { _, _ ->
                         videoPlayerFragment?.resetDuplicateTracker()
                     }
@@ -112,6 +122,50 @@ class MainActivity : AppCompatActivity() {
         binding.toolbar.subtitle = "Vanskelighet: ${difficulty.label}"
     }
 
+    // ── Navigation ──────────────────────────────────────────────────────────
+
+    private fun navigateToSinglePlayer() {
+        val frag = VideoPlayerFragment()
+        frag.setDifficulty(currentDifficulty)
+        currentFragment = frag
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .commit()
+        supportActionBar?.title = "GuessTheSongYear"
+    }
+
+    private fun navigateToLocalMultiplayer() {
+        val frag = MultiplayerSetupFragment()
+        currentFragment = frag
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack("multiplayer_setup")
+            .commit()
+        supportActionBar?.title = "Flerspiller"
+    }
+
+    fun startMultiplayerGame(players: List<MultiPlayerManager.Player>) {
+        val frag = MultiplayerGameFragment.newInstance(players.map {
+            Pair(it.name, it.name)
+        }.toList())
+        gameFragment = frag
+        frag.setDifficulty(currentDifficulty)
+        currentFragment = frag
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack("multiplayer_game")
+            .commit()
+        supportActionBar?.title = "Flerspiller"
+    }
+
+    private fun navigateToHostGame() {
+        Toast.makeText(this, "HostGame: kommer snart!", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun navigateToJoinGame() {
+        Toast.makeText(this, "JoinGame: kommer rart!", Toast.LENGTH_SHORT).show()
+    }
+
     private fun confirmResetScore() {
         val stats = videoPlayerFragment?.getStats() ?: ""
         AlertDialog.Builder(this)
@@ -126,10 +180,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAbout() {
         AlertDialog.Builder(this)
-            .setTitle("GuessTheSongYear")
-            .setMessage("En musikk-quiz der du gjetter året til kjente musikkvideoer.\n\n" +
-                "Poeng basert på nøyaktighet. Test kunnskapen din!")
+            .setTitle("PlaylistThe")
+            .setMessage("En musikk-quiz der du gjetter begjæret til sanger. Multiplayer for flerparty!")
             .setPositiveButton("OK", null)
             .show()
+    }
+
+    private fun showFragment(fragment: androidx.fragment.app.Fragment) {
+        currentFragment = fragment
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, fragment)
+            .commit()
     }
 }

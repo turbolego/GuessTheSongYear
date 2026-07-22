@@ -22,6 +22,21 @@
     </item>
 
     <item
+        android:id="@+id/action_local_multiplayer"
+        android:title="@string/menu_local_multiplayer"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_host_game"
+        android:title="@string/menu_host_game"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_join_game"
+        android:title="@string/menu_join_game"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_reset_score"
         android:title="@string/menu_reset_score"
         app:showAsAction="never" />

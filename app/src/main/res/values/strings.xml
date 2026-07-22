@@ -7,6 +7,9 @@
     <string name="menu_about">Om</string>
     <string name="menu_reset_score">Nullstill poeng</string>
     <string name="menu_clear_duplicates">Nullstill duplikat-teller</string>
+    <string name="menu_local_multiplayer">Lokal flerspiller (samme enhet)</string>
+    <string name="menu_host_game">Host spill (WiFi)</string>
+    <string name="menu_join_game">Bli med i spill (WiFi)</string>
 
     <!-- Difficulty -->
     <string name="difficulty_easy">Lett</string>
@@ -33,15 +36,37 @@
     <string name="wrong">Feil! Riktig år var %d. 😢</string>
     <string name="score_earned">+%d poeng</string>
 
-    <!-- Game session (multiplayer stubs) -->
+    <!-- Local multiplayer -->
+    <string name="game_session">Flertame</string>
     <string name="current_player">Spiller: %s</string>
     <string name="turn_of">%s sin tur</string>
+    <string name="add_player">Legg til spiller</string>
+    <string name="remove_player">Fjern spiller</string>
+    <string name="player_name_hint">Spillernavn</string>
+    <string name="player_name_required">Skriv inn et spillernavn</string>
+    <string name="start_game">Start spill</string>
+    <string name="players_label">Spillere:</string>
+    <string name="min_players">Minst 2 spillere</string>
+    <string name="leaderboard_title">🏆 Ledertavle 🏆</string>
+    <string name="leaderboard_item">%s — %d poeng</string>
+
+    <!-- Network multiplayer -->
+    <string name="host_game_title">Host spill over WiFi</string>
+    <string name="join_game_title">Bli med i WiFi-spill</string>
+    <string name="host_started">Venter på spillera…</string>
+    <string name="host_scanning">Søker erter spill…</string>
+    <string name="no_games_found">Ingen spill funnet. Spør vennene dine om å hoste et spill.</string>
+    <string name="game_full">Spillet er fullt</string>
+    <string name="connected_to_host">Koblet til host</string>
+    <string name="waiting_for_host">Venter på video fra host…</string>
 
     <!-- Errors -->
     <string name="error_loading_video">Kunne ikke laste video. Prøv en annen.</string>
     <string name="error_invalid_year">Vennligst skriv inn et gyldig år (1960–2025).</string>
     <string name="error_generic">Noe gikk galt. Prøv igjen.</string>
     <string name="error_no_videos_left">Ingen flere videoer tilgjengelig. Prøv å oppdatere.</string>
+
+    <!-- Overlay -->
     <string name="overlay_audio_only">🎵 Bare lyd</string>
     <string name="btn_hide_video">Skjul video</string>
     <string name="btn_show_video">Vis video</string>
