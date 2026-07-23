@@ -119,10 +119,21 @@ class HostGameFragment : Fragment(), GameNetworkListener {
         isHosting = true
 
         binding.textViewHostStatus.visibility = View.VISIBLE
-        binding.textViewHostStatus.text = "Starter WiFi-vertskap..."
+        binding.textViewHostStatus.text = getString(R.string.hosting_status_wifi_start)
         binding.progressBarHost.visibility = View.VISIBLE
 
+        // Register listener BEFORE starting service so nothing is missed
+        val serviceListener = this
+        HostGameService.instance?.networkListener = serviceListener
+
+        // Start the service — listener will pick up status updates
         HostGameService.start(requireContext(), hostName)
+
+        // Re-bind listener to the newly created instance (start may create a new instance)
+        // Post on main looper to give service time to start
+        view?.postDelayed({
+            HostGameService.instance?.networkListener = serviceListener
+        }, 200)
 
         binding.buttonHostWifi.isEnabled = false
         binding.buttonHostBluetooth.isEnabled = false
@@ -193,11 +204,17 @@ class HostGameFragment : Fragment(), GameNetworkListener {
     override fun onHostingStarted(sessionId: String, hostName: String) {
         this.sessionId = sessionId
         this.hostName = hostName
-        binding.textViewHostStatus.text = "Vertskap startet! 💻"
+        binding.textViewHostStatus.text = "✅ Vertskap aktivt!"
         binding.textViewTransportHint.text = "Host: $hostName | Spill: $sessionId"
         binding.progressBarHost.visibility = View.GONE
         binding.textViewPlayersLabel.visibility = View.VISIBLE
         binding.recyclerViewJoinedPlayers.visibility = View.VISIBLE
+    }
+
+    override fun onHostingStatus(status: String) {
+        requireActivity().runOnUiThread {
+            binding.textViewHostStatus.text = status
+        }
     }
 
     override fun onServiceRegistered(serviceName: String) {

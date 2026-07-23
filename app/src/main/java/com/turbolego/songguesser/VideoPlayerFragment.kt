@@ -441,6 +441,10 @@ class VideoPlayerFragment : Fragment() {
                 Log.w(TAG, "Network error (client): $error")
             }
 
+            override fun onHostingStatus(status: String) {
+                Log.d(TAG, "Client host status: $status")
+            }
+
             override fun onVideoReceived(videoId: String, year: Int, title: String) {
                 Log.d(TAG, "Client received VIDEO: $videoId ($year - $title)")
                 requireActivity().runOnUiThread {

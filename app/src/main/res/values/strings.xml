@@ -74,4 +74,5 @@
     <string name="btn_hide_video">Skjul video</string>
     <string name="btn_show_video">Vis video</string>
     <string name="btn_reveal_answers">Vis svar</string>
+    <string name="hosting_status_wifi_start">Starter WiFi-vertskap...</string>
 </resources>

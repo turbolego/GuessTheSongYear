@@ -50,4 +50,11 @@ interface GameNetworkListener {
 
     /** Network error occurred. */
     fun onNetworkError(error: String)
+
+    /**
+     * Debug/verbose status for hosting progress.
+     * Called at each step of the hosting sequence so the UI can show
+     * exactly what the service is doing.
+     */
+    fun onHostingStatus(status: String) {}
 }

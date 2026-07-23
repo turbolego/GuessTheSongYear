@@ -139,7 +139,21 @@ class HostGameService : Service() {
     private val wifiDirectReceiver = object : BroadcastReceiver() {
         @Suppress("DEPRECATION")
         override fun onReceive(context: Context, intent: Intent) {
+            Log.d(TAG, "WiFi receiver: ${intent.action}")
             when (intent.action) {
+                WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION -> {
+                    val state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
+                    Log.d(TAG, "WiFi P2P state: $state")
+                    val status = when (state) {
+                        WifiP2pManager.WIFI_P2P_STATE_ENABLED -> "WiFi Direct aktivert"
+                        WifiP2pManager.WIFI_P2P_STATE_DISABLED -> "WiFi Direct deaktivert"
+                        else -> "WiFi Direct tilstand: $state"
+                    }
+                    networkListener?.onHostingStatus(status)
+                }
+                WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
+                    networkListener?.onHostingStatus("Enhetsinfo oppdatert")
+                }
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
                     val networkInfo = intent.getParcelableExtra<NetworkInfo>(
                         WifiP2pManager.EXTRA_NETWORK_INFO
@@ -147,10 +161,15 @@ class HostGameService : Service() {
                     val p2pInfo = intent.getParcelableExtra<WifiP2pInfo>(
                         WifiP2pManager.EXTRA_WIFI_P2P_INFO
                     )
+                    networkListener?.onHostingStatus(
+                        "🔗 Tilkobling: ${if (networkInfo?.isConnected == true) "koblet" else "kobler..."}"
+                    )
                     if (networkInfo?.isConnected == true && p2pInfo?.isGroupOwner == true) {
                         Log.d(TAG, "Confirmed as group owner via broadcast")
-                        isGroupOwner = true
-                        onGroupOwnerReady()
+                        if (!isGroupOwner) {
+                            isGroupOwner = true
+                            onGroupOwnerReady()
+                        }
                     }
                 }
             }
@@ -189,6 +208,7 @@ class HostGameService : Service() {
         Log.d(TAG, "Starting hosting as $hostName (transport=$transport)")
         sessionId = "${hostName}_${System.currentTimeMillis()}"
         sessionManager.createSession(sessionId!!, hostName)
+        networkListener?.onHostingStatus("📋 Økt-ID: $sessionId")
 
         when (transport) {
             Protocol.TRANSPORT_BLUETOOTH -> startBluetoothHosting()
@@ -202,10 +222,21 @@ class HostGameService : Service() {
 
     private fun startWifiHosting() {
         Log.d(TAG, "Starting Wi-Fi Direct hosting")
+        networkListener?.onHostingStatus("⚙️ Starter WiFi-vertskap...")
+
         wifiP2pManager = getSystemService(WIFI_P2P_SERVICE) as WifiP2pManager
         nsdManager = getSystemService(NSD_SERVICE) as NsdManager
-        wifiChannel = wifiP2pManager?.initialize(this, mainLooper) { /* channel lost */ }
+
+        networkListener?.onHostingStatus("Initialiserer WiFi Direct...")
+        wifiChannel = wifiP2pManager?.initialize(this, mainLooper) {
+            Log.e(TAG, "WiFi channel lost")
+            networkListener?.onHostingStatus("WiFi-kanal tapt!")
+        }
+
+        networkListener?.onHostingStatus("📻 Registrerer WiFi-mottaker...")
         registerWifiReceiver()
+
+        networkListener?.onHostingStatus("🔄 Oppretter P2P-gruppe...")
         createP2pGroup()
     }
 
@@ -258,11 +289,21 @@ class HostGameService : Service() {
     }
 
     private fun onGroupOwnerReady() {
-        findP2pAddress()
-        registerNsdService()
-        startTcpServerSocket()
-        networkListener?.onHostingStarted(sessionId ?: "unknown", hostName)
-    }
+            Log.d(TAG, "Wi-Fi: Group owner ready")
+            networkListener?.onHostingStatus("WiFi Direct gruppe opprettet")
+
+            findP2pAddress()
+            val addrStr = p2pHostAddress?.hostAddress ?: "ukjent"
+            networkListener?.onHostingStatus("Adresse: $addrStr")
+
+            registerNsdService()
+            networkListener?.onHostingStatus("Registrerer spill-tjeneste via NSD")
+
+            startTcpServerSocket()
+            networkListener?.onHostingStatus("Server lytter pa port 8888")
+
+            networkListener?.onHostingStarted(sessionId ?: "unknown", hostName)
+        }
 
     private fun findP2pAddress() {
         try {

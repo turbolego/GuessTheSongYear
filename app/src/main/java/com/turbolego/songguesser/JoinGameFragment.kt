@@ -213,6 +213,10 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         binding.progressBarJoin.visibility = View.GONE
         binding.editTextPlayerName.isEnabled = true
     }
+
+    override fun onHostingStatus(status: String) {
+        // Joiner doesn't need hosting status — just log for debugging
+    }
 }
 
 /**
