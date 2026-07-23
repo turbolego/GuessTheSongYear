@@ -33,6 +33,8 @@ object Protocol {
     const val MSG_REVEAL_RESULT = "REVEAL_RESULT"
     const val MSG_PLAYER_LEFT = "PLAYER_LEFT"
     const val MSG_END = "END"
+    const val MSG_HELLO = "HELLO"
+    const val MSG_ACK = "ACK"
 
     // ── JSON field constants ─────────────────────────────────────────────────
 

@@ -39,6 +39,19 @@ class JoinGameService : Service() {
         private const val EXTRA_BT_ADDRESS = "bt_address"
 
         /**
+         * Scan the LAN for any active hosts. Returns via networkListener callbacks.
+         * Probes 192.168.x.2–254 by sending HELLO and expecting ACK.
+         */
+        fun scanLan(context: Context, playerName: String) {
+            val intent = Intent(context, JoinGameService::class.java).apply {
+                putExtra(EXTRA_PLAYER_NAME, playerName)
+                putExtra(EXTRA_TRANSPORT, Protocol.TRANSPORT_WIFI)
+                action = ACTION_SCAN_LAN
+            }
+            context.startService(intent)
+        }
+
+        /**
          * Connect to a Wi-Fi host by IP:port.
          */
         fun connectWifi(context: Context, playerName: String, hostIp: String, hostPort: Int = Protocol.WIFI_SERVER_PORT) {
@@ -71,6 +84,7 @@ class JoinGameService : Service() {
 
         private const val ACTION_JOIN_WIFI = "com.turbolego.songguesser.action.JOIN_WIFI"
         private const val ACTION_JOIN_BLUETOOTH = "com.turbolego.songguesser.action.JOIN_BLUETOOTH"
+        private const val ACTION_SCAN_LAN = "com.turbolego.songguesser.action.SCAN_LAN"
     }
 
     // ── State ────────────────────────────────────────────────────────────
@@ -126,6 +140,9 @@ class JoinGameService : Service() {
                     networkListener?.onNetworkError("Ingen Bluetooth-adresse gitt")
                 }
             }
+            ACTION_SCAN_LAN -> {
+                serviceScope.launch { scanLanForHosts() }
+            }
             else -> {
                 Log.w(TAG, "Unknown action: ${intent?.action}")
                 networkListener?.onNetworkError("Ukjent handling")
@@ -142,6 +159,136 @@ class JoinGameService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LAN SCANNING
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Scan all 192.168.x.x subnets that our device might be on.
+     * Probe each host by sending HELLO; listen for ACK with hostName.
+     * Uses parallel coroutines for speed (~3s for all 254 IPs per subnet).
+     */
+    private suspend fun scanLanForHosts() {
+        networkListener?.onHostingStatus("Søker etter spill på LAN...")
+
+        // Get the WiFi IP to determine which subnet(s) to scan
+        val wifiManager = getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+        val wifiInfo = wifiManager?.connectionInfo
+        val myIp = (wifiInfo?.ipAddress ?: 0).let {
+            formatIp(it)
+        }
+
+        Log.d(TAG, "LAN scan: my IP = $myIp")
+
+        // Determine subnets to scan
+        val subnets = mutableSetOf<String>()
+
+        // Extract subnet from our own IP
+        val mySubnet = myIp.let {
+            val lastDot = it.lastIndexOf('.')
+            if (lastDot > 0) it.substring(0, lastDot) else ""
+        }
+        if (mySubnet.isNotBlank() && mySubnet.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}$"""))) {
+            subnets.add(mySubnet)
+        }
+
+        // Always scan 192.168.1.x (most common) and 192.168.0.x (secondary)
+        subnets.add("192.168.1")
+        subnets.add("192.168.0")
+
+        Log.d(TAG, "Scanning subnets: $subnets")
+
+        val discoveredHosts = mutableListOf<LanHost>()
+        val scannedCount = java.util.concurrent.atomic.AtomicInteger(0)
+        val totalHosts = subnets.sumOf { 253 } // .2–254 per subnet
+
+        // CoroutineScope for parallel probes — bound to serviceScope
+        coroutineScope {
+            for (subnet in subnets) {
+                // Launch 128 probes per subnet in parallel, then the rest
+                val ips = (2..254).map { "$subnet.$it" }.toList()
+                ips.forEach { ip ->
+                    launch {
+                        probeHost(ip, Protocol.WIFI_SERVER_PORT)?.let { host ->
+                            synchronized(discoveredHosts) {
+                                discoveredHosts.add(host)
+                            }
+                            networkListener?.onServiceRegistered(host.hostName)
+                            Log.d(TAG, "Found host: ${host.hostName} at $ip")
+                        }
+                        val done = scannedCount.incrementAndGet()
+                        if (done >= totalHosts) {
+                            // All done — report final status
+                            networkListener?.onHostingStatus(
+                                if (discoveredHosts.isEmpty()) {
+                                    "Fant ingen spill. Skjekk at verten er aktiv."
+                                } else {
+                                    "Fant ${discoveredHosts.size} vert(er). Trykk for å bli med."
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Probe a single IP:port for a host. Send HELLO, read ACK.
+     * Returns a LanHost on success, null on timeout or failure.
+     */
+    private suspend fun probeHost(ip: String, port: Int): LanHost? = withContext(Dispatchers.IO) {
+        try {
+            val socket = Socket()
+            socket.connect(InetSocketAddress(ip, port), 800) // 800ms timeout
+            val writer = PrintWriter(socket.getOutputStream(), true)
+            val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
+
+            // Send HELLO
+            val hello = Protocol.buildJson {
+                put(Protocol.FIELD_TYPE, Protocol.MSG_HELLO)
+            }
+            writer.println(hello.toString())
+
+            // Read response (must be ACK with hostName)
+            val line = reader.readLine() ?: return@withContext null
+            val msg = Protocol.tryParse(line) ?: return@withContext null
+            if (msg.optString(Protocol.FIELD_TYPE) != Protocol.MSG_ACK) return@withContext null
+
+            val hostName = msg.optString(Protocol.FIELD_HOST_NAME, "Vert")
+            val playersJson = msg.optJSONArray(Protocol.FIELD_PLAYERS)
+            val playerCount = playersJson?.length() ?: 0
+
+            LanHost(hostName, ip, port, playerCount)
+        } catch (_: Exception) {
+            null
+        } finally {
+            @Suppress("TooGenericExceptionCaught")
+            try { /* socket closed by try-with-resources via local val */ } catch (_: Exception) {}
+        }
+    }
+
+    /** Format integer IP (network byte order) to dotted string. */
+    private fun formatIp(ipInt: Int): String {
+        return String.format(
+            "%d.%d.%d.%d",
+            ipInt and 0xFF,
+            (ipInt shr 8) and 0xFF,
+            (ipInt shr 16) and 0xFF,
+            (ipInt shr 24) and 0xFF
+        )
+    }
+
+    /**
+     * Data class representing a host discovered via LAN scan.
+     */
+    data class LanHost(
+        val hostName: String,
+        val ip: String,
+        val port: Int,
+        val playerCount: Int
+    )
 
     // ═══════════════════════════════════════════════════════════════════════
     // Wi-Fi: TCP socket connection

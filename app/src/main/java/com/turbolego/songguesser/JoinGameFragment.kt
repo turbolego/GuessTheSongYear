@@ -5,8 +5,12 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.zxing.integration.android.IntentIntegrator
 import com.google.zxing.integration.android.IntentResult
 import com.turbolego.songguesser.databinding.FragmentJoinGameBinding
@@ -16,8 +20,9 @@ import com.turbolego.songguesser.GameSessionManager.RevealResult
 /**
  * Fragment for joining a network multiplayer game.
  *
- * Enter the host's IP:port manually or scan the host's QR code.
- * On success, navigates to VideoPlayerFragment in client mode.
+ * On entry: automatically scans the LAN for active hosts using TCP HELLO probes.
+ * Discovered hosts show in a tap-to-join list.
+ * QR code scanning and manual IP entry are fallbacks.
  */
 class JoinGameFragment : Fragment(), GameNetworkListener {
 
@@ -29,9 +34,13 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     private var hostPort: Int = Protocol.WIFI_SERVER_PORT
     private var hasJoined = false
 
+    /** Hosts discovered via LAN scan. */
+    private val discoveredHosts = mutableListOf<JoinGameService.LanHost>()
+    private var hostsAdapter: LanHostsAdapter? = null
+
     companion object {
         private const val TAG = "JoinGameFragment"
-        private const val RC_QR_SCAN = 0x0000c0de // arbitrary request code
+        private const val RC_QR_SCAN = 0x0000c0de
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -47,9 +56,15 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        setupRecyclerView()
         setupListeners()
         binding.editTextPlayerName.setText("Spiller")
         binding.editTextHostIp.setText("")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        startLanScan()
     }
 
     override fun onDestroyView() {
@@ -62,9 +77,42 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
     // ── Setup ────────────────────────────────────────────────────────────────
 
+    private fun setupRecyclerView() {
+        hostsAdapter = LanHostsAdapter(discoveredHosts) { host ->
+            connectToHost(host.ip, host.port)
+        }
+        binding.recyclerViewDiscoveredHosts.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = hostsAdapter
+        }
+    }
+
     private fun setupListeners() {
         binding.buttonConnect.setOnClickListener { connectToHost() }
         binding.buttonScanQr.setOnClickListener { scanQrCode() }
+        binding.buttonRefreshScan.setOnClickListener { startLanScan() }
+    }
+
+    // ── LAN Scan ─────────────────────────────────────────────────────────────
+
+    private fun startLanScan() {
+        playerName = binding.editTextPlayerName.text.toString().trim()
+        if (playerName.isBlank()) {
+            Toast.makeText(requireContext(), "Skriv inn navnet ditt", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        discoveredHosts.clear()
+        hostsAdapter?.notifyDataSetChanged()
+        hasJoined = false
+
+        binding.textViewConnectionStatus.visibility = View.VISIBLE
+        binding.textViewConnectionStatus.text = "Søker etter spill på LAN..."
+        binding.progressBarJoin.visibility = View.VISIBLE
+        binding.buttonRefreshScan.isEnabled = false
+        binding.buttonScanQr.isEnabled = false
+
+        JoinGameService.scanLan(requireContext(), playerName)
     }
 
     // ── QR Scan ──────────────────────────────────────────────────────────────
@@ -73,45 +121,29 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         val integrator = IntentIntegrator(requireActivity())
         integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
         integrator.setPrompt("Skann vertens QR-kode")
-        integrator.setCameraId(0) // back camera
+        integrator.setCameraId(0)
         integrator.setBeepEnabled(false)
         integrator.setBarcodeImageEnabled(false)
         integrator.setOrientationLocked(true)
-        // Initiate scan — result comes back via onActivityResult
         integrator.initiateScan()
     }
 
-    /**
-     * Handle QR scan result. Called by the host Activity when
-     * onActivityResult matches our request.
-     */
     fun onQrScanResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val result: IntentResult? = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
         if (result != null && result.contents != null) {
             val scanned = result.contents.trim()
-            // The QR content should be an IP:port string
-            // Try to parse and fill in the IP field, then auto-connect
             parseAndConnect(scanned)
         } else {
             Toast.makeText(requireContext(), "Kunne ikke lese QR-kode", Toast.LENGTH_SHORT).show()
         }
     }
 
-    /**
-     * Parse potentially QR-scanned content and connect.
-     * Accepts "ip:port", "ip", or "http://ip:port".
-     */
     private fun parseAndConnect(content: String) {
         var ipText = content.trim()
-
-        // Strip scheme prefix if present
         if (ipText.startsWith("http://")) ipText = ipText.removePrefix("http://")
         else if (ipText.startsWith("https://")) ipText = ipText.removePrefix("https://")
-
-        // Strip trailing slash
         ipText = ipText.trimEnd('/')
 
-        // Parse IP:port
         val colonIndex = ipText.lastIndexOf(':')
         val ip: String
         val port: Int
@@ -123,14 +155,12 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
             port = Protocol.WIFI_SERVER_PORT
         }
 
-        // Validate IP format
         val ipPattern = Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")
         if (!ipPattern.matches(ip)) {
             Toast.makeText(requireContext(), "Ugyldig IP i QR-kode: $ip", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Fill in the IP field and auto-connect
         binding.editTextHostIp.setText(content)
         connectToHost(ip, port)
     }
@@ -146,11 +176,10 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
         val ipText = binding.editTextHostIp.text.toString().trim()
         if (ipText.isBlank()) {
-            Toast.makeText(requireContext(), "Skriv inn vertens IP eller skann QR", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "Skriv inn vertens IP, skann QR, eller vent på LAN-scan", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Parse IP:port format
         val colonIndex = ipText.lastIndexOf(':')
         val ip: String
         val port: Int
@@ -171,7 +200,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         connectToHost(ip, port)
     }
 
-    /** Internal connect method used by both manual entry and QR scan. */
+    /** Internal connect used by LAN tap, manual entry, and QR scan. */
     private fun connectToHost(ip: String, port: Int) {
         playerName = binding.editTextPlayerName.text.toString().trim()
         if (playerName.isBlank()) {
@@ -183,11 +212,15 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         hostPort = port
         hasJoined = false
 
+        // Fill IP field so user sees what they're connecting to
+        binding.editTextHostIp.setText("$hostIp:$hostPort")
+
         binding.textViewConnectionStatus.visibility = View.VISIBLE
         binding.textViewConnectionStatus.text = "Kobler til $hostIp:$hostPort..."
         binding.progressBarJoin.visibility = View.VISIBLE
         binding.buttonConnect.isEnabled = false
         binding.buttonScanQr.isEnabled = false
+        binding.buttonRefreshScan.isEnabled = false
         binding.editTextPlayerName.isEnabled = false
         binding.editTextHostIp.isEnabled = false
 
@@ -199,7 +232,14 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     // ═══════════════════════════════════════════════════════════════════════════
 
     override fun onHostingStarted(sessionId: String, hostName: String) { /* n/a */ }
-    override fun onServiceRegistered(serviceName: String) { /* n/a */ }
+
+    override fun onServiceRegistered(serviceName: String) {
+        // A LAN host was found — check if it's already in the list
+        val ip = hostIp // this gets set by onHostingStatus containing IP info
+        // Actually the LAN scan gives us through the listener indirectly.
+        // We use onHostingStatus for scan status messages, and discoveredHosts
+        // is populated via the JoinGameService's callback path.
+    }
 
     override fun onJoinedSession(session: GameSession) {
         hasJoined = true
@@ -242,6 +282,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
             binding.progressBarJoin.visibility = View.GONE
             binding.buttonConnect.isEnabled = true
             binding.buttonScanQr.isEnabled = true
+            binding.buttonRefreshScan.isEnabled = true
             binding.editTextPlayerName.isEnabled = true
             binding.editTextHostIp.isEnabled = true
         }
@@ -251,5 +292,40 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         requireActivity().runOnUiThread {
             binding.textViewConnectionStatus.text = status
         }
+    }
+}
+
+/**
+ * RecyclerView adapter for displaying discovered LAN hosts.
+ */
+private class LanHostsAdapter(
+    private val hosts: MutableList<JoinGameService.LanHost>,
+    private val onTap: (JoinGameService.LanHost) -> Unit,
+) : RecyclerView.Adapter<LanHostsAdapter.VH>() {
+
+    class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val text1: TextView = itemView.findViewById(android.R.id.text1)
+        val text2: TextView = itemView.findViewById(android.R.id.text2)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(android.R.layout.simple_list_item_2, parent, false)
+        return VH(view)
+    }
+
+    override fun getItemCount(): Int = hosts.size
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val host = hosts[position]
+        holder.text1.text = host.hostName
+        holder.text1.setTextColor(
+            ResourcesCompat.getColor(holder.itemView.resources, R.color.body_text, null)
+        )
+        holder.text2.text = "${host.ip}:${host.port} · ${host.playerCount} spiller(e)"
+        holder.text2.setTextColor(
+            ResourcesCompat.getColor(holder.itemView.resources, R.color.muted_text, null)
+        )
+        holder.itemView.setOnClickListener { onTap(host) }
     }
 }

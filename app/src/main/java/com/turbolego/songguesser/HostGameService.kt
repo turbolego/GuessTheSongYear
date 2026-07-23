@@ -230,18 +230,37 @@ class HostGameService : Service() {
             val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
             val writer = PrintWriter(socket.getOutputStream(), true)
 
-            // Read the first message — must be JOIN
-            val joinLine = reader.readLine() ?: return
-            val joinMsg = Protocol.tryParse(joinLine) ?: run {
-                Log.w(TAG, "Invalid join message: $joinLine")
-                return
-            }
-            if (joinMsg.optString(Protocol.FIELD_TYPE) != Protocol.MSG_JOIN) {
-                Log.w(TAG, "First message was not JOIN: ${joinMsg.optString(Protocol.FIELD_TYPE)}")
+            // Read the first message — must be JOIN or HELLO
+            val firstLine = reader.readLine() ?: return
+            val firstMsg = Protocol.tryParse(firstLine) ?: run {
+                Log.w(TAG, "Invalid message: $firstLine")
                 return
             }
 
-            val playerName = joinMsg.optString(Protocol.FIELD_PLAYER, "Ukjent")
+            val firstType = firstMsg.optString(Protocol.FIELD_TYPE)
+
+            // HELLO: respond immediately with host info, then close
+            if (firstType == Protocol.MSG_HELLO) {
+                val ip = socket.inetAddress.hostAddress ?: "unknown"
+                Log.d(TAG, "HELLO from $ip")
+                val ackMsg = Protocol.buildJson {
+                    put(Protocol.FIELD_TYPE, Protocol.MSG_ACK)
+                    put(Protocol.FIELD_HOST_NAME, hostName)
+                    put(Protocol.FIELD_PLAYERS, JSONArray(
+                        clients.keys.toList() + hostName))
+                }
+                writer.println(ackMsg.toString())
+                try { socket.close() } catch (_: IOException) {}
+                return
+            }
+
+            // Not JOIN or HELLO — bail
+            if (firstType != Protocol.MSG_JOIN) {
+                Log.w(TAG, "First message was not JOIN: $firstType")
+                return
+            }
+
+            val playerName = firstMsg.optString(Protocol.FIELD_PLAYER, "Ukjent")
             val conn = ClientConnection(playerName, reader, writer, socket)
             clients[playerName] = conn
 

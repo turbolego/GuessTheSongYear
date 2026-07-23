@@ -64,27 +64,39 @@
     <!-- Scan QR button -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/buttonScanQr"
+        style="@style/Widget.Material3.Button.IconButton"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
-        android:text="QR"
-        android:textSize="10sp"
+        android:text=""
+        android:contentDescription="Skann QR-kode"
         app:icon="@android:drawable/ic_menu_camera"
-        app:iconSize="18dp"
+        app:iconSize="22dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/textInputLayoutHostIp"
         app:layout_constraintTop_toTopOf="@+id/textInputLayoutHostIp" />
 
-    <!-- Connect button -->
+    <!-- Refresh + Connect row -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonRefreshScan"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="8dp"
+        android:text="Søk etter spill"
+        app:layout_constraintEnd_toStartOf="@+id/buttonConnect"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textInputLayoutHostIp" />
+
     <com.google.android.material.button.MaterialButton
         android:id="@+id/buttonConnect"
         android:layout_width="0dp"
         android:layout_height="48dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
         android:text="Koble til"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/buttonRefreshScan"
         app:layout_constraintTop_toBottomOf="@+id/textInputLayoutHostIp" />
 
     <!-- Connection status -->
@@ -99,7 +111,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/buttonConnect"
-        tools:text="@string/connected_to_host"
+        tools:text="Søker etter spill på LAN..."
         tools:visibility="visible" />
 
     <ProgressBar
@@ -111,5 +123,20 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textViewConnectionStatus" />
+
+    <!-- Discovered hosts list -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewDiscoveredHosts"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="12dp"
+        android:overScrollMode="never"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/progressBarJoin"
+        tools:visibility="visible"
+        tools:listitem="@android:layout/simple_list_item_2" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
