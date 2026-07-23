@@ -31,6 +31,8 @@ private const val MAX_RETRY_ATTEMPTS = 5
 private const val YEAR_MIN = 1960
 private const val YEAR_MAX = 2025
 private const val ENABLE_DEBUG_LOGS = false  // set to true for WebView debug
+private const val PRELOAD_COUNT = 3           // buffer 3 videos ahead
+private const val PRELOAD_INTERVAL_MS = 200L  // 200ms gap between cueVideoById calls
 
 data class KnownVideo(val id: String, val year: Int)
 data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
@@ -163,6 +165,10 @@ class VideoPlayerFragment : Fragment() {
 
     private var countdownJob: Job? = null
     private var loadVideoJob: Job? = null
+    private var preloadJob: Job? = null
+
+    /** Pre-loaded candidate video IDs for instant fallback on load error. */
+    private val preloadedCandidates: MutableList<ApiVideo> = mutableListOf()
 
     // ── Multiplayer state (simultaneous guessing) ────────────────────────────
     private var isMultiplayer = false
@@ -223,6 +229,8 @@ class VideoPlayerFragment : Fragment() {
         super.onDestroyView()
         countdownJob?.cancel()
         loadVideoJob?.cancel()
+        preloadJob?.cancel()
+        preloadedCandidates.clear()
         isPlayerReady = false
         _binding = null
     }
@@ -294,6 +302,7 @@ class VideoPlayerFragment : Fragment() {
                     if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Playing: ${currentVideo?.id}")
                     enableGuessing()
                     if (currentDifficulty.hintEnabled && !isMultiplayer) showHint()
+                    if (!isNetworkClient) preloadNextCandidates()
                 }
             }
         }
@@ -403,22 +412,6 @@ class VideoPlayerFragment : Fragment() {
         webView.evaluateJavascript("javascript:cueVideo('$videoId')", null)
     }
 
-    private fun autoSwitchVideoOnError() {
-        lifecycleScope.launch {
-            val candidate = pickCandidate(currentDifficulty)
-            if (candidate != null) {
-                Log.d(TAG, "Auto-switching to: ${candidate.id}")
-                currentVideo = candidate
-                playedVideoIds.add(candidate.id)
-                try { cueVideoInWebView(candidate.id) } catch (_: Exception) {}
-            } else {
-                Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_LONG).show()
-                binding.buttonNextVideo.visibility = View.VISIBLE
-                binding.progressBar.visibility = View.GONE
-            }
-        }
-    }
-
     private fun setupYouTubePlayer() {
         val webView = binding.youtubePlayerView as WebView
 
@@ -446,6 +439,89 @@ class VideoPlayerFragment : Fragment() {
         if (ENABLE_DEBUG_LOGS) {
             @Suppress("DEPRECATION")
             WebView.setWebContentsDebuggingEnabled(true) // Chrome DevTools for WebView
+        }
+    }
+
+    // ── Video preloading (3 candidates buffered in WebView) ───────────────
+
+    /**
+     * Preload 3 next video candidates into the WebView via cueVideoById.
+     * Cued videos are buffered but don't start playing. When the current
+     * video fails, we immediately switch to the next cued candidate.
+     *
+     * Called after a video starts playing (onStateChange → PLAYING).
+     */
+    private fun preloadNextCandidates() {
+        preloadJob?.cancel()
+        preloadJob = lifecycleScope.launch {
+            preloadedCandidates.clear()
+            val seen = playedVideoIds.toMutableSet()
+            seen.add(currentVideo?.id ?: "")
+
+            for (i in 0 until PRELOAD_COUNT) {
+                val candidate = pickCandidate(currentDifficulty, seen)
+                if (candidate != null) {
+                    cueVideoInWebView(candidate.id)
+                    preloadedCandidates.add(candidate)
+                    seen.add(candidate.id)
+                    delay(PRELOAD_INTERVAL_MS)
+                }
+            }
+
+            if (ENABLE_DEBUG_LOGS) {
+                Log.d(TAG, "Preloaded ${preloadedCandidates.size} candidates: " +
+                    preloadedCandidates.map { it.id }.joinToString())
+            }
+        }
+    }
+
+    /**
+     * Like pickCandidate but excludes already-played + already-preloaded IDs.
+     */
+    private fun pickCandidate(difficulty: Difficulty, excludeIds: Set<String>): ApiVideo? {
+        val pool = currentVideoList.filter { it.year in difficulty.yearRangeStart..difficulty.yearRangeEnd }
+        if (pool.isEmpty()) return null
+        val unplayed = pool.filter { it.id !in excludeIds }
+        if (unplayed.isEmpty()) return null
+        return unplayed.random()
+    }
+
+    /**
+     * Consume the next preloaded candidate — use it as the video to play.
+     * Called when current video fails to load (onError fallback).
+     */
+    private fun consumeNextPreloadedCandidate(): Boolean {
+        if (preloadedCandidates.isEmpty()) return false
+        val candidate = preloadedCandidates.removeAt(0)
+        if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Switching to preloaded: ${candidate.id}")
+        currentVideo = candidate
+        playedVideoIds.add(candidate.id)
+        return true
+    }
+
+    private fun autoSwitchVideoOnError() {
+        // Try preloaded candidate first — instant fallback (already buffered in WebView)
+        if (preloadedCandidates.isNotEmpty()) {
+            if (consumeNextPreloadedCandidate()) {
+                try { loadVideoInWebView(currentVideo!!.id) } catch (_: Exception) {}
+                preloadNextCandidates()  // refill buffer
+                return
+            }
+        }
+
+        // Fallback: pick a new candidate the slow way
+        lifecycleScope.launch {
+            val candidate = pickCandidate(currentDifficulty)
+            if (candidate != null) {
+                Log.d(TAG, "Auto-switching to: ${candidate.id}")
+                currentVideo = candidate
+                playedVideoIds.add(candidate.id)
+                try { cueVideoInWebView(candidate.id) } catch (_: Exception) {}
+            } else {
+                Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_LONG).show()
+                binding.buttonNextVideo.visibility = View.VISIBLE
+                binding.progressBar.visibility = View.GONE
+            }
         }
     }
 
