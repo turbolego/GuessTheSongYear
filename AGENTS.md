@@ -5,14 +5,16 @@
 
 This is a music-quiz Android app. Users watch a YouTube music video and guess its release year.
 
-## Feature flags / future work
+## Multiplayer Architecture
 
-- [ ] **Local Multiplayer**: WiFi P2P with GameSessionManager (stubbed)
-- [ ] **High Score Persistence**: SharedPreferences or Room DB to save best scores
-- [ ] **Music Video Category Filter**: Genre, decade, artist filters
-- [ ] **Leaderboard**: Firebase or local leaderboard
-- [ ] **Sound FX**: Guess correct/wrong sounds
-- [ ] **Animations**: Smoother transitions between videos
+The app supports LAN (local area network) multiplayer:
+
+- **TCP server on port 8888** — Host starts a TCP server on `192.168.x.x:8888`
+- **Automatic LAN discovery** — Joiners probe all `192.168.x.2–254` with HELLO/ACK handshake
+- **QR code fallback** — Host shows QR with IP:port for scanning
+- **Manual IP entry** — Available as fallback
+
+Discovery happens automatically when joiners open the "Join" tab. No manual IP entry needed.
 
 ## Build commands
 
@@ -25,6 +27,7 @@ This is a music-quiz Android app. Users watch a YouTube music video and guess it
 ## CI
 
 `.github/workflows/build-apk.yml` — builds on push/PR to master.
+⚠️ **Security:** CI uses `contents: write` at workflow level — should be moved to job level.
 
 ## Dependencies (version catalog)
 
@@ -33,6 +36,8 @@ This is a music-quiz Android app. Users watch a YouTube music video and guess it
 - AGP 9.3.0, Kotlin 2.4.10
 - YouTube Player 13.0.0 (com.pierfrancescosoffritti.androidyoutubeplayer)
 - ViewBinding enabled
+- OkHttp 4.12.0 (for InnerTube API)
+- ZXing 3.5.3 (QR code generation + scanning)
 
 ## Release signed APK
 
@@ -44,9 +49,22 @@ Unsigned release APK: `app/build/outputs/apk/release/app-release-unsigned.apk`
 
 | File | Purpose |
 |------|---------|
-| `MainActivity.kt` | Activity, toolbar, menu, difficulty switching |
+| `MainActivity.kt` | Activity, toolbar, menu, difficulty switching, QR result forwarding |
 | `VideoPlayerFragment.kt` | Core game: player, guess input, scoring |
-| `YouTubeSearchService.kt` | InnerTube API, falls back to hardcoded list |
+| `YouTubeSearchService.kt` | InnerTube API (⚠️ reverse-engineered, ToS risk) |
 | `ScoreManager.kt` | Points, streaks, accuracy |
 | `Difficulty.kt` | Easy/Medium/Hard config |
-| `GameSessionManager.kt` | Multiplayer session (stub for future) |
+| `GameSessionManager.kt` | Multiplayer session management (TCP via HostGameService/JoinGameService) |
+| `Protocol.kt` | TCP message types, port, Bluetooth UUID |
+| `HostGameService.kt` | TCP server — accepts clients, broadcasts messages, LAN discovery ACK |
+| `JoinGameService.kt` | TCP client — connects to host, LAN scanner (HELLO probes) |
+| `HostGameFragment.kt` | Host UI — IP display, QR code generation, player list |
+| `JoinGameFragment.kt` | Join UI — LAN scan results, QR scanning, manual IP entry |
+
+## Security
+
+See [`SECURITY.md`](./SECURITY.md) for full audit. Key issues:
+1. 🚨 **InnerTube API** — reverse-engineered YouTube API, ToS violation
+2. 🟠 **No TLS** — multiplayer messages in cleartext
+3. 🟠 **Minimal protocol validation** — no auth tokens in messages
+4. 🟠 **CI token permissions** — `contents: write` too broad

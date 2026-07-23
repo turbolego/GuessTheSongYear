@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 concurrency:
@@ -19,6 +19,9 @@ jobs:
   build:
     if: github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write   # needed for auto-version bump commit + push
 
     outputs:
       version_name: ${{ steps.version.outputs.versionName }}
@@ -108,7 +111,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write   # needed for creating GitHub Release
 
     steps:
       - uses: actions/download-artifact@v4
