@@ -32,6 +32,9 @@ private const val YEAR_MAX = 2025
 private const val ENABLE_DEBUG_LOGS = false  // set to true for WebView debug
 private const val PRELOAD_COUNT = 3           // buffer 3 videos ahead
 private const val PRELOAD_INTERVAL_MS = 200L  // 200ms gap between cueVideoById calls
+private const val OEMBED_INTERVAL_MS = 100L   // 100ms between oEmbed validation calls
+private const val OEMBED_TIMEOUT_MS = 15000   // 15s timeout per oEmbed call
+private val PERMANENT_EMBED_ERRORS = setOf(100, 101, 150, 152)   // Iframe error codes that mean "never try this video again"
 
 data class KnownVideo(val id: String, val year: Int)
 data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
@@ -56,12 +59,79 @@ private var currentVideoList: MutableList<ApiVideo> = mutableListOf()
 val playedVideoIds: MutableSet<String> = mutableSetOf()
 var duplicateSkipCount = 0
 
-private fun loadVideoPool() {
+/** Videos validated as embeddable via oEmbed API. Populated at startup. */
+private val embeddableVideoIds: MutableSet<String> = mutableSetOf()
+
+/**
+ * Load and validate the video pool.
+ *
+ * 1. Build pool from curated fallback list.
+ * 2. Filter out videos that don't allow embedding using YouTube's
+ *    public oEmbed API (no API key required).
+ *
+ * Runs async — setupYouTubePlayer() starts without pool, but
+ * loadVideoPool() (now suspend) must complete before loadNextVideo().
+ */
+private suspend fun loadVideoPool() {
     Log.d(TAG, "Loading video pool (${fallbackVideoList.size} curated videos)")
+
+    embeddableVideoIds.clear()
     currentVideoList.clear()
-    currentVideoList.addAll(fallbackVideoList.map {
+
+    // Phase 1: Add all candidates (optimistic)
+    val candidates = fallbackVideoList.map {
         ApiVideo(it.id, it.year, 0L, "Music Video")
-    })
+    }
+
+    // Phase 2: Validate embedding via oEmbed (parallel-ish, sequential to be safe)
+    // YouTube oEmbed endpoint: no API key, returns 401/404 if embed blocked
+    for ((index, video) in candidates.withIndex()) {
+        if (index > 0) delay(OEMBED_INTERVAL_MS) // rate limit — ~100ms between calls
+        if (isEmbeddable(video.id)) {
+            embeddableVideoIds.add(video.id)
+        }
+    }
+
+    // Phase 3: Keep only embeddable videos
+    val embeddableOnly = candidates.filter { it.id in embeddableVideoIds }
+    currentVideoList.addAll(embeddableOnly)
+
+    Log.d(TAG, "Pool: ${currentVideoList.size} embeddable (${candidates.size - currentVideoList.size} blocked)")
+}
+
+/**
+ * Check if a YouTube video allows embedding via the public oEmbed API.
+ * No API key required.
+ *
+ * GET https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=VIDEO_ID&format=json
+ *
+ * Returns true if YouTube responds with valid JSON (embed allowed).
+ * Returns false on 401/404/error (embed blocked or video unavailable).
+ */
+private fun isEmbeddable(videoId: String): Boolean {
+    return try {
+        val url = java.net.URL("https://www.youtube.com/oembed?" +
+            "url=https://www.youtube.com/watch?v=$videoId&format=json")
+        val conn = url.openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = OEMBED_TIMEOUT_MS
+        conn.readTimeout = OEMBED_TIMEOUT_MS
+        conn.requestMethod = "GET"
+        conn.setRequestProperty("User-Agent",
+            "GuessTheSongYear/1.0 (Android; oEmbed validation)")
+        val code = conn.responseCode
+        if (code in 200..299) {
+            conn.inputStream.bufferedReader().use { it.readText() }
+            // Valid JSON returned → embed allowed
+            true
+        } else {
+            // 401/404 → embed blocked
+            if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Video $videoId: oEmbed returned $code — NOT embeddable")
+            false
+        }
+    } catch (e: Exception) {
+        if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Video $videoId: oEmbed failed — NOT embeddable")
+        false
+    }
 }
 
 private fun pickCandidate(difficulty: Difficulty): ApiVideo? {
@@ -165,9 +235,13 @@ class VideoPlayerFragment : Fragment() {
     private var countdownJob: Job? = null
     private var loadVideoJob: Job? = null
     private var preloadJob: Job? = null
+    private var videoPoolLoadJob: Job? = null
 
     /** Pre-loaded candidate video IDs for instant fallback on load error. */
     private val preloadedCandidates: MutableList<ApiVideo> = mutableListOf()
+
+    /** True when loadVideoPool() has completed (oEmbed validation done). */
+    private var videoPoolReady = false
 
     // ── Multiplayer state (simultaneous guessing) ────────────────────────────
     private var isMultiplayer = false
@@ -208,11 +282,6 @@ class VideoPlayerFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Load video pool FIRST — before setting up YouTube player.
-        // This guarantees currentVideoList is populated before onReady
-        // triggers loadNextVideo().
-        loadVideoPool()
-
         setupListeners()
         setupYouTubePlayer()
 
@@ -222,10 +291,20 @@ class VideoPlayerFragment : Fragment() {
             // Client mode: register listener, no video pool (video from host)
             setupClientNetworkListener()
         } else {
-            // Video pool already loaded synchronously above.
-            // Start preloading candidates immediately.
-            if (currentVideoList.isNotEmpty()) {
-                lifecycleScope.launch {
+            // Load + validate video pool (oEmbed filtering), then preload.
+            // This runs async — onReady will block on videoReady flag.
+            videoPoolLoadJob = lifecycleScope.launch {
+                loadVideoPool()
+                videoPoolReady = true
+
+                // If player already became ready while pool was loading,
+                // kick off the first video now.
+                if (isPlayerReady && currentVideo == null) {
+                    loadNextVideo()
+                }
+
+                // Start preloading candidates immediately
+                if (currentVideoList.isNotEmpty()) {
                     preloadNextCandidates()
                 }
             }
@@ -240,7 +319,9 @@ class VideoPlayerFragment : Fragment() {
         countdownJob?.cancel()
         loadVideoJob?.cancel()
         preloadJob?.cancel()
+        videoPoolLoadJob?.cancel()
         preloadedCandidates.clear()
+        videoPoolReady = false
         isPlayerReady = false
         _binding = null
     }
@@ -296,8 +377,12 @@ class VideoPlayerFragment : Fragment() {
             requireActivity().runOnUiThread {
                 if (ENABLE_DEBUG_LOGS) Log.d(TAG, "YouTube Iframe: onReady")
                 isPlayerReady = true
-                if (currentVideo == null) loadNextVideo()
-                else beginCountdown(currentVideo!!.id)
+                // Don't load until video pool is validated (oEmbed check)
+                // loadVideoPool() runs async — videoPoolLoadJob sets videoPoolReady=true
+                // If pool IS ready, proceed. Otherwise pool loads kicks off loadNextVideo
+                // when done.
+                if (videoPoolReady && currentVideo == null) loadNextVideo()
+                else if (currentVideo != null) beginCountdown(currentVideo!!.id)
             }
         }
 
@@ -321,10 +406,27 @@ class VideoPlayerFragment : Fragment() {
         fun onError(error: Int) {
             requireActivity().runOnUiThread {
                 if (ENABLE_DEBUG_LOGS) Log.e(TAG, "Player error: $error (attempt ${errorRetryCount + 1})")
+
+                // YouTube Iframe error code:
+                //   2   = invalid parameter
+                //   5   = HTML5 player error
+                //   100 = video not found
+                //   101 = embedding blocked by owner
+                //   150 = embedding disabled by uploader
+                //   152 = video unavailable
+
+                // On permanent embed-block errors, remove the video from pool
+                // so preloading never picks it again.
+                if (error in PERMANENT_EMBED_ERRORS && currentVideo != null) {
+                    val blockedId = currentVideo!!.id
+                    currentVideoList.removeAll { it.id == blockedId }
+                    embeddableVideoIds.remove(blockedId)
+                    preloadedCandidates.removeAll { it.id == blockedId }
+                    if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Video $blockedId permanently removed (embed blocked)")
+                }
+
                 errorRetryCount++
                 // Always try to switch — preloaded or fallback.
-                // Only show error toast if autoSwitchVideoOnError
-                // exhausts ALL options (preload buffer + pickCandidate).
                 autoSwitchVideoOnError()
             }
         }
