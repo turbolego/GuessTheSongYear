@@ -27,7 +27,6 @@ import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
 private const val TAG = "VideoPlayerFragment"
-private const val MAX_RETRY_ATTEMPTS = 5
 private const val YEAR_MIN = 1960
 private const val YEAR_MAX = 2025
 private const val ENABLE_DEBUG_LOGS = false  // set to true for WebView debug
@@ -57,7 +56,7 @@ private var currentVideoList: MutableList<ApiVideo> = mutableListOf()
 val playedVideoIds: MutableSet<String> = mutableSetOf()
 var duplicateSkipCount = 0
 
-private suspend fun fetchVideosFromApi() {
+private fun loadVideoPool() {
     Log.d(TAG, "Loading video pool (${fallbackVideoList.size} curated videos)")
     currentVideoList.clear()
     currentVideoList.addAll(fallbackVideoList.map {
@@ -209,16 +208,27 @@ class VideoPlayerFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Load video pool FIRST — before setting up YouTube player.
+        // This guarantees currentVideoList is populated before onReady
+        // triggers loadNextVideo().
+        loadVideoPool()
+
         setupListeners()
         setupYouTubePlayer()
 
         if (isMultiplayer) setupMultiplayerUI()
 
         if (isNetworkClient) {
-            // Client mode: register listener, no API fetching (video from host)
+            // Client mode: register listener, no video pool (video from host)
             setupClientNetworkListener()
         } else {
-            lifecycleScope.launch { fetchVideosFromApi() }
+            // Video pool already loaded synchronously above.
+            // Start preloading candidates immediately.
+            if (currentVideoList.isNotEmpty()) {
+                lifecycleScope.launch {
+                    preloadNextCandidates()
+                }
+            }
         }
 
         if (!isMultiplayer) updateScoreDisplay()
@@ -312,13 +322,10 @@ class VideoPlayerFragment : Fragment() {
             requireActivity().runOnUiThread {
                 if (ENABLE_DEBUG_LOGS) Log.e(TAG, "Player error: $error (attempt ${errorRetryCount + 1})")
                 errorRetryCount++
-                if (errorRetryCount >= MAX_RETRY_ATTEMPTS) {
-                    Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_LONG).show()
-                    binding.buttonNextVideo.visibility = View.VISIBLE
-                    binding.progressBar.visibility = View.GONE
-                } else {
-                    autoSwitchVideoOnError()
-                }
+                // Always try to switch — preloaded or fallback.
+                // Only show error toast if autoSwitchVideoOnError
+                // exhausts ALL options (preload buffer + pickCandidate).
+                autoSwitchVideoOnError()
             }
         }
     }
@@ -449,7 +456,10 @@ class VideoPlayerFragment : Fragment() {
      * Cued videos are buffered but don't start playing. When the current
      * video fails, we immediately switch to the next cued candidate.
      *
-     * Called after a video starts playing (onStateChange → PLAYING).
+     * Called at two points:
+     * 1. After a video starts playing (onStateChange → PLAYING)
+     * 2. Immediately when VideoPlayerFragment is created (so buffer 1 is
+     *    ready before the first video even loads).
      */
     private fun preloadNextCandidates() {
         preloadJob?.cancel()
@@ -503,7 +513,11 @@ class VideoPlayerFragment : Fragment() {
         // Try preloaded candidate first — instant fallback (already buffered in WebView)
         if (preloadedCandidates.isNotEmpty()) {
             if (consumeNextPreloadedCandidate()) {
-                try { loadVideoInWebView(currentVideo!!.id) } catch (_: Exception) {}
+                // Call loadVideo (not cueVideo — preloaded was already cued, but
+                // the previous video's error state may need a fresh load).
+                // If THIS also fails, onError fires again with preloadedCandidates
+                // still having remaining candidates.
+                loadVideoInWebView(currentVideo!!.id)
                 preloadNextCandidates()  // refill buffer
                 return
             }
