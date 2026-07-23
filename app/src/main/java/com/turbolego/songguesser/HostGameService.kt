@@ -13,6 +13,7 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
+import android.net.wifi.WifiManager
 import android.os.IBinder
 import android.util.Log
 import kotlinx.coroutines.*
@@ -223,20 +224,18 @@ class HostGameService : Service() {
     private fun startWifiHosting() {
         Log.d(TAG, "Starting Wi-Fi Direct hosting")
         networkListener?.onHostingStatus("⚙️ Starter WiFi-vertskap...")
-
+        
+        val wm = getSystemService(Context.WIFI_SERVICE) as WifiManager
+        if (!wm.isWifiEnabled) {
+            networkListener?.onNetworkError("WiFi er ikke aktivert")
+            return
+        }
+        
         wifiP2pManager = getSystemService(WIFI_P2P_SERVICE) as WifiP2pManager
         nsdManager = getSystemService(NSD_SERVICE) as NsdManager
-
-        networkListener?.onHostingStatus("Initialiserer WiFi Direct...")
-        wifiChannel = wifiP2pManager?.initialize(this, mainLooper) {
-            Log.e(TAG, "WiFi channel lost")
-            networkListener?.onHostingStatus("WiFi-kanal tapt!")
-        }
-
-        networkListener?.onHostingStatus("📻 Registrerer WiFi-mottaker...")
+        wifiChannel = wifiP2pManager?.initialize(this, mainLooper) { /* channel lost */ }
+        networkListener?.onHostingStatus("📶 WiFi er til/enabled")
         registerWifiReceiver()
-
-        networkListener?.onHostingStatus("🔄 Oppretter P2P-gruppe...")
         createP2pGroup()
     }
 
@@ -256,22 +255,38 @@ class HostGameService : Service() {
             networkListener?.onNetworkError("WiFi Direct channel not available")
             return
         }
+        
+        // Add timeout for group creation - some devices hang silently
+        val timeoutJob = serviceScope.launch {
+            delay(15_000) // 15 second timeout
+            if (!isGroupOwner) {
+                Log.e(TAG, "createGroup timeout after 15s")
+                networkListener?.onNetworkError("WiFi Direct timeout: group creation took too long. Is WiFi enabled? Does this device support WiFi Direct?")
+            }
+        }
+        
         wifiP2pManager?.createGroup(ch, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
+                timeoutJob.cancel()
                 Log.d(TAG, "P2P group created — this device is group owner")
                 isGroupOwner = true
                 onGroupOwnerReady()
             }
 
             override fun onFailure(reason: Int) {
+                timeoutJob.cancel()
                 Log.e(TAG, "createGroup failed: reason=$reason")
+                val errorMsg = when (reason) {
+                    WifiP2pManager.BUSY -> "WiFi Direct busy (group may already exist)"
+                    WifiP2pManager.ERROR -> "Generic WiFi Direct error"
+                    WifiP2pManager.P2P_UNSUPPORTED -> "WiFi Direct not supported on this device"
+                    else -> "WiFi Direct error (code=$reason)"
+                }
                 if (reason == WifiP2pManager.BUSY) {
                     Log.d(TAG, "Group may already exist, requesting group info")
                     requestGroupInfo()
                 } else {
-                    networkListener?.onNetworkError(
-                        "Failed to create WiFi Direct group (code=$reason)"
-                    )
+                    networkListener?.onNetworkError("Failed to create WiFi Direct group: $errorMsg")
                 }
             }
         })
