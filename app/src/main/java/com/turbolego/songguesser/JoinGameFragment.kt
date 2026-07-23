@@ -8,32 +8,24 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
-import androidx.recyclerview.widget.RecyclerView
 import com.turbolego.songguesser.databinding.FragmentJoinGameBinding
 import com.turbolego.songguesser.GameSessionManager.GameSession
 import com.turbolego.songguesser.GameSessionManager.RevealResult
 
 /**
- * Fragment for joining a network multiplayer game via WiFi Direct.
+ * Fragment for joining a network multiplayer game.
  *
- * Discovers nearby hosts, shows them in a list, and lets the user tap to join.
- * On success, navigates to VideoPlayerFragment in client mode (no reveal button).
+ * Enter the host's IP:port and player name, then tap "Koble til".
+ * On success, navigates to VideoPlayerFragment in client mode.
  */
 class JoinGameFragment : Fragment(), GameNetworkListener {
 
     private var _binding: FragmentJoinGameBinding? = null
     private val binding get() = _binding!!
 
-    /** Player name entered by the user. */
     private var playerName: String = ""
-
-    /** Discovered hosts. */
-    private val discoveredHosts = mutableListOf<DiscoveredHost>()
-
-    /** Adapter for the discovered hosts list. */
-    private var hostsAdapter: DiscoveredHostsAdapter? = null
-
-    /** Whether we have joined a session. */
+    private var hostIp: String = ""
+    private var hostPort: Int = Protocol.WIFI_SERVER_PORT
     private var hasJoined = false
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -49,11 +41,9 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        setupRecyclerView()
         setupListeners()
-
         binding.editTextPlayerName.setText("Spiller")
+        binding.editTextHostIp.setText("")
     }
 
     override fun onDestroyView() {
@@ -66,71 +56,56 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
     // ── Setup ────────────────────────────────────────────────────────────────
 
-    private fun setupRecyclerView() {
-        hostsAdapter = DiscoveredHostsAdapter(discoveredHosts) { host ->
-            onHostTapped(host)
-        }
-        binding.recyclerViewDiscoveredHosts.apply {
-            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
-            adapter = hostsAdapter
-        }
-    }
-
     private fun setupListeners() {
-        binding.editTextPlayerName.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
-                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
-            ) {
-                startDiscovery()
-                true
-            } else false
-        }
+        binding.buttonConnect.setOnClickListener { connectToHost() }
     }
 
-    override fun onResume() {
-        super.onResume()
-        startDiscovery()
-    }
+    // ── Connect ──────────────────────────────────────────────────────────────
 
-    // ── Discovery ────────────────────────────────────────────────────────────
-
-    private fun startDiscovery() {
+    private fun connectToHost() {
         playerName = binding.editTextPlayerName.text.toString().trim()
         if (playerName.isBlank()) {
             Toast.makeText(requireContext(), "Skriv inn navnet ditt", Toast.LENGTH_SHORT).show()
             return
         }
 
-        discoveredHosts.clear()
-        hostsAdapter?.notifyDataSetChanged()
-        hasJoined = false
-
-        binding.textViewConnectionStatus.visibility = View.VISIBLE
-        binding.textViewConnectionStatus.text = "Søker etter spill..."
-        binding.progressBarJoin.visibility = View.VISIBLE
-        binding.editTextPlayerName.isEnabled = false
-
-        JoinGameService.startDiscovery(requireContext(), playerName)
-    }
-
-    private fun onHostTapped(host: DiscoveredHost) {
-        if (hasJoined) {
-            Toast.makeText(requireContext(), "Allerede med i et spill", Toast.LENGTH_SHORT).show()
+        val ipText = binding.editTextHostIp.text.toString().trim()
+        if (ipText.isBlank()) {
+            Toast.makeText(requireContext(), "Skriv inn vertens IP", Toast.LENGTH_SHORT).show()
             return
         }
 
-        binding.textViewConnectionStatus.text = "Kobler til ${host.displayName}..."
-        binding.progressBarJoin.visibility = View.VISIBLE
-
-        if (host.deviceAddress.isNotBlank()) {
-            JoinGameService.joinHost(requireContext(), playerName, host.deviceAddress)
+        // Parse IP:port format (e.g. "192.168.1.42:8888")
+        val colonIndex = ipText.lastIndexOf(':')
+        val ip: String
+        val port: Int
+        if (colonIndex > 0) {
+            ip = ipText.substring(0, colonIndex).trim()
+            port = ipText.substring(colonIndex + 1).trim().toIntOrNull() ?: Protocol.WIFI_SERVER_PORT
         } else {
-            Toast.makeText(
-                requireContext(),
-                "Kobler til ${host.displayName}...",
-                Toast.LENGTH_SHORT
-            ).show()
+            ip = ipText.trim()
+            port = Protocol.WIFI_SERVER_PORT
         }
+
+        // Basic IP validation
+        val ipPattern = Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")
+        if (!ipPattern.matches(ip)) {
+            Toast.makeText(requireContext(), "Ugyldig IP-adresse", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        hostIp = ip
+        hostPort = port
+        hasJoined = false
+
+        binding.textViewConnectionStatus.visibility = View.VISIBLE
+        binding.textViewConnectionStatus.text = "Kobler til $hostIp:$hostPort..."
+        binding.progressBarJoin.visibility = View.VISIBLE
+        binding.buttonConnect.isEnabled = false
+        binding.editTextPlayerName.isEnabled = false
+        binding.editTextHostIp.isEnabled = false
+
+        JoinGameService.connectWifi(requireContext(), playerName, hostIp, hostPort)
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -142,29 +117,21 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     }
 
     override fun onServiceRegistered(serviceName: String) {
-        val existing = discoveredHosts.find { it.displayName == serviceName }
-        if (existing == null) {
-            discoveredHosts.add(DiscoveredHost(serviceName, ""))
-            hostsAdapter?.notifyItemInserted(discoveredHosts.size - 1)
-            binding.textViewConnectionStatus.text =
-                "Fant ${discoveredHosts.size} spill. Trykk for å bli med."
-        }
+        // Not applicable for joiner
     }
 
     override fun onJoinedSession(session: GameSession) {
         hasJoined = true
         binding.progressBarJoin.visibility = View.GONE
-
-        Toast.makeText(requireContext(), "Ble med i spillet!", Toast.LENGTH_SHORT).show()
         binding.textViewConnectionStatus.text = "Koblet til ${session.hostName}!"
+        Toast.makeText(requireContext(), "Ble med i spillet!", Toast.LENGTH_SHORT).show()
 
         val allPlayerNames = session.players.keys.toList()
 
-        // Service stays alive for game sync — navigate to game
         val activity = requireActivity() as? MainActivity
         if (activity != null) {
             val frag = VideoPlayerFragment.newInstance(
-                playerNames = allPlayerNames.toList(),
+                playerNames = allPlayerNames,
                 showReveal = false
             )
             activity.supportFragmentManager.beginTransaction()
@@ -174,33 +141,13 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         }
     }
 
-    override fun onPlayerJoined(playerName: String, clientIp: String) {
-        // Not used while in the join screen
-    }
-
-    override fun onPlayerDisconnected(playerName: String) {
-        // Not used while in the join screen
-    }
-
-    override fun onVideoReceived(videoId: String, year: Int, title: String) {
-        // Not used while in the join screen
-    }
-
-    override fun onRevealReceived() {
-        // Not used while in the join screen
-    }
-
-    override fun onRevealResultReceived(results: List<RevealResult>) {
-        // Not used while in the join screen
-    }
-
-    override fun onTurnReceived(playerName: String) {
-        // Not used while in the join screen
-    }
-
-    override fun onGuessReceived(playerName: String, guess: Int, correctYear: Int, score: Int) {
-        // Not used while in the join screen
-    }
+    override fun onPlayerJoined(playerName: String, clientIp: String) { /* n/a */ }
+    override fun onPlayerDisconnected(playerName: String) { /* n/a */ }
+    override fun onVideoReceived(videoId: String, year: Int, title: String) { /* n/a */ }
+    override fun onRevealReceived() { /* n/a */ }
+    override fun onRevealResultReceived(results: List<RevealResult>) { /* n/a */ }
+    override fun onTurnReceived(playerName: String) { /* n/a */ }
+    override fun onGuessReceived(playerName: String, guess: Int, correctYear: Int, score: Int) { /* n/a */ }
 
     override fun onSessionEnded() {
         hasJoined = false
@@ -208,56 +155,19 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     }
 
     override fun onNetworkError(error: String) {
-        Toast.makeText(requireContext(), "Feil: $error", Toast.LENGTH_LONG).show()
-        binding.textViewConnectionStatus.text = "Feil: $error"
-        binding.progressBarJoin.visibility = View.GONE
-        binding.editTextPlayerName.isEnabled = true
+        requireActivity().runOnUiThread {
+            Toast.makeText(requireContext(), "Feil: $error", Toast.LENGTH_LONG).show()
+            binding.textViewConnectionStatus.text = "Feil: $error"
+            binding.progressBarJoin.visibility = View.GONE
+            binding.buttonConnect.isEnabled = true
+            binding.editTextPlayerName.isEnabled = true
+            binding.editTextHostIp.isEnabled = true
+        }
     }
 
     override fun onHostingStatus(status: String) {
-        // Joiner doesn't need hosting status — just log for debugging
-    }
-}
-
-/**
- * Represents a discovered game host.
- */
-data class DiscoveredHost(
-    val displayName: String,
-    val deviceAddress: String,
-)
-
-/**
- * RecyclerView adapter for displaying discovered hosts in JoinGameFragment.
- */
-private class DiscoveredHostsAdapter(
-    private val hosts: MutableList<DiscoveredHost>,
-    private val onTap: (DiscoveredHost) -> Unit,
-) : RecyclerView.Adapter<DiscoveredHostsAdapter.VH>() {
-
-    class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val text1: TextView = itemView.findViewById(android.R.id.text1)
-        val text2: TextView = itemView.findViewById(android.R.id.text2)
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(android.R.layout.simple_list_item_2, parent, false)
-        return VH(view)
-    }
-
-    override fun getItemCount(): Int = hosts.size
-
-    override fun onBindViewHolder(holder: VH, position: Int) {
-        val host = hosts[position]
-        holder.text1.text = host.displayName
-        holder.text1.setTextColor(
-            ResourcesCompat.getColor(holder.itemView.resources, R.color.body_text, null)
-        )
-        holder.text2.text = "Trykk for å bli med"
-        holder.text2.setTextColor(
-            ResourcesCompat.getColor(holder.itemView.resources, R.color.muted_text, null)
-        )
-        holder.itemView.setOnClickListener { onTap(host) }
+        requireActivity().runOnUiThread {
+            binding.textViewConnectionStatus.text = status
+        }
     }
 }

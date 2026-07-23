@@ -40,31 +40,37 @@
             android:textColorHint="@color/muted_text" />
     </com.google.android.material.textfield.TextInputLayout>
 
-    <!-- Discover hosts label -->
-    <TextView
-        android:id="@+id/textViewDiscoveredLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="@string/discovered_hosts_label"
-        android:textSize="14sp"
-        android:textColor="@color/muted_text"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textInputLayoutName" />
-
-    <!-- List of discovered hosts -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerViewDiscoveredHosts"
+    <!-- Host IP input -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/textInputLayoutHostIp"
         android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="4dp"
-        android:overScrollMode="never"
-        app:layout_constraintBottom_toTopOf="@+id/textViewConnectionStatus"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="Vertens IP (f.eks. 192.168.1.42:8888)"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewDiscoveredLabel"
-        tools:listitem="@layout/item_player_row"
-        tools:visibility="visible" />
+        app:layout_constraintTop_toBottomOf="@+id/textInputLayoutName">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editTextHostIp"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:inputType="text|phone"
+            android:maxLines="1"
+            android:textColor="@color/body_text"
+            android:textColorHint="@color/muted_text" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Connect button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonConnect"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="12dp"
+        android:text="Koble til"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textInputLayoutHostIp" />
 
     <!-- Connection status -->
     <TextView
@@ -77,7 +83,7 @@
         android:gravity="center"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintBottom_toTopOf="@+id/progressBarJoin"
+        app:layout_constraintTop_toBottomOf="@+id/buttonConnect"
         tools:text="@string/connected_to_host"
         tools:visibility="visible" />
 
@@ -85,10 +91,10 @@
         android:id="@+id/progressBarJoin"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        tools:visibility="visible" />
+        app:layout_constraintTop_toBottomOf="@+id/textViewConnectionStatus" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

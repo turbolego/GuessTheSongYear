@@ -50,6 +50,7 @@ object Protocol {
     const val FIELD_DIFFERENCE = "difference"
     const val FIELD_IS_CORRECT = "isCorrect"
     const val FIELD_SCORE = "score"
+    const val FIELD_TOTAL_SCORE = "totalScore"
     const val FIELD_NAME = "name"
     const val FIELD_IS_HOST = "isHost"
     const val FIELD_RESULTS = "results"
@@ -67,12 +68,6 @@ object Protocol {
     const val TRANSPORT_BLUETOOTH = "bluetooth"
 
     // ── Service constants ────────────────────────────────────────────────────
-
-    /** WiFi Direct NSD service type. */
-    const val WIFI_SERVICE_TYPE = "_guessgame._tcp"
-
-    /** WiFi Direct NSD service name. */
-    const val WIFI_SERVICE_NAME = "GuessTheSongYear"
 
     /** Default TCP server port for Wi-Fi transport. */
     const val WIFI_SERVER_PORT = 8888
