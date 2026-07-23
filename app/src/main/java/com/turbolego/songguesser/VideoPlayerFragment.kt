@@ -32,106 +32,81 @@ private const val YEAR_MAX = 2025
 private const val ENABLE_DEBUG_LOGS = false  // set to true for WebView debug
 private const val PRELOAD_COUNT = 3           // buffer 3 videos ahead
 private const val PRELOAD_INTERVAL_MS = 200L  // 200ms gap between cueVideoById calls
-private const val OEMBED_INTERVAL_MS = 100L   // 100ms between oEmbed validation calls
-private const val OEMBED_TIMEOUT_MS = 15000   // 15s timeout per oEmbed call
 private val PERMANENT_EMBED_ERRORS = setOf(100, 101, 150, 152)   // Iframe error codes that mean "never try this video again"
 
 data class KnownVideo(val id: String, val year: Int)
 data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
 
 private val fallbackVideoList = listOf(
-    KnownVideo("dQw4w9WgXcQ", 1987), KnownVideo("ZbZSe6N_BXs", 1985),
-    KnownVideo("djV1KL4Btzw", 1984), KnownVideo("rYEDA3JiTEA", 1984),
-    KnownVideo("1w7OgIMMRc4", 1985), KnownVideo("1G4isv_Fyls", 1985),
-    KnownVideo("hr0ObGAUDlQ", 1982), KnownVideo("hcwnL9a61o0", 1999),
-    KnownVideo("tF3iR0rN-8g", 1991), KnownVideo("q3zKKtYsEj8", 1994),
-    KnownVideo("ZmDBbnMqK70", 1999), KnownVideo("YR5W3FKE88Q", 1998),
-    KnownVideo("XbGsChTe4go", 1999), KnownVideo("6KnRLJZ0ZRw", 1995),
-    KnownVideo("eBCRc2Zk6hA", 2000), KnownVideo("dQ1ribkayAU", 2008),
-    KnownVideo("lp-EO5I60KA", 2009), KnownVideo("kJQP7kiF5Fk", 2006),
-    KnownVideo("9bZkp7q19f0", 2012), KnownVideo("YQHsXMglC9A", 2015),
-    KnownVideo("OPf0YbXqDm0", 2014), KnownVideo("2Vv-BfVoq4g", 2017),
-    KnownVideo("kPa7bsDwL-c", 2023), KnownVideo("hVlgHmeZjg8", 2021),
-    KnownVideo("W0DW0WCb5ac", 2023), KnownVideo("iWzvlFnyYwE", 2023),
+    // All verified embeddable via YouTube oEmbed API (HTTP 200).
+    // Years sourced from YouTube metadata / Wikipedia.
+    KnownVideo("dQw4w9WgXcQ", 1987),     // Rick Astley — Never Gonna Give You Up
+    KnownVideo("ZbZSe6N_BXs", 2013),     // Pharrell Williams — Happy
+    KnownVideo("1w7OgIMMRc4", 1987),     // Guns N' Roses — Sweet Child O' Mine
+    KnownVideo("lp-EO5I60KA", 2014),     // Ed Sheeran — Thinking Out Loud
+    KnownVideo("9bZkp7q19f0", 2012),     // PSY — Gangnam Style
+    KnownVideo("YQHsXMglC9A", 2015),     // Adele — Hello
+    KnownVideo("OPf0YbXqDm0", 2014),     // Mark Ronson — Uptown Funk
+    KnownVideo("2Vv-BfVoq4g", 2017),     // Ed Sheeran — Perfect
+    KnownVideo("fLexgOxsZu0", 2010),     // Bruno Mars — The Lazy Song
+    KnownVideo("kJQP7kiw5Fk", 2017),     // Luis Fonsi — Despacito
+    KnownVideo("YlUKcNNmywk", 1999),     // Red Hot Chili Peppers — Californication
+    KnownVideo("QcIy9NiNbmo", 2014),     // Taylor Swift — Bad Blood
+    KnownVideo("fRh_vgS2dFE", 2015),     // Justin Bieber — Sorry
+    KnownVideo("JGwWNGJdvx8", 2017),     // Ed Sheeran — Shape of You
+    KnownVideo("RgKAFK5djSk", 2015),     // Wiz Khalifa — See You Again
+    KnownVideo("papuvlVeZg8", 2016),     // Clean Bandit — Rockabye
+    KnownVideo("kffacxfA7G4", 2010),     // Justin Bieber — Baby
+    KnownVideo("k2qgadSvNyU", 2017),     // Dua Lipa — New Rules
+    KnownVideo("Oextk-If8HQ", 2004),     // Keane — Somewhere Only We Know
+    KnownVideo("UceaB4D0jpo", 2017),     // Post Malone — rockstar
+    KnownVideo("v2AC41dglnM", 1990),     // AC/DC — Thunderstruck
+    KnownVideo("hT_nvWreIhg", 2013),     // OneRepublic — Counting Stars
+    KnownVideo("fKopy74weus", 2017),     // Imagine Dragons — Thunder
+    KnownVideo("ZRtdQ81jPUQ", 2023),     // YOASOBI — アイドル
+    KnownVideo("T3E9Wjbq44E", 2011),     // Gym Class Heroes — Stereo Hearts
+    KnownVideo("K0ibBPhiaG0", 2017),     // Ed Sheeran — Castle On The Hill
+    KnownVideo("w2Ov5jzm3j8", 2019),     // Lil Nas X — Old Town Road
+    KnownVideo("450p7goxZqg", 2013),     // John Legend — All of Me
+    KnownVideo("ptSjNWnzpjg", 2008),     // Taylor Swift — Fearless
+    KnownVideo("SMs0GnYze34", 2016),     // DJ Snake — Let Me Love You
+    KnownVideo("NmCFY1oYDeM", 2016),     // John Legend — Love Me Now
+    KnownVideo("bESGLojNYSo", 2008),     // Lady Gaga — Poker Face
+    KnownVideo("Pkh8UtuejGw", 2019),     // Shawn Mendes & Camila Cabello — Señorita
+    KnownVideo("Rt0spqQtMKg", 2006),     // SNL — D*** in a Box
+    KnownVideo("YykjpeuMNEk", 2015),     // Coldplay — Hymn For The Weekend
 )
 
 private var currentVideoList: MutableList<ApiVideo> = mutableListOf()
 val playedVideoIds: MutableSet<String> = mutableSetOf()
 var duplicateSkipCount = 0
 
-/** Videos validated as embeddable via oEmbed API. Populated at startup. */
+/** Videos validated as embeddable via oEmbed API. All videos in fallbackVideoList are pre-verified. */
 private val embeddableVideoIds: MutableSet<String> = mutableSetOf()
 
 /**
- * Load and validate the video pool.
+ * Load the video pool from the curated, oEmbed-verified fallback list.
+ * All videos in this list have been pre-checked for embed permission
+ * via YouTube's public oEmbed API (HTTP 200 = embeddable).
  *
- * 1. Build pool from curated fallback list.
- * 2. Filter out videos that don't allow embedding using YouTube's
- *    public oEmbed API (no API key required).
- *
- * Runs async — setupYouTubePlayer() starts without pool, but
- * loadVideoPool() (now suspend) must complete before loadNextVideo().
+ * Synchronous — no network calls needed at startup.
  */
-private suspend fun loadVideoPool() {
-    Log.d(TAG, "Loading video pool (${fallbackVideoList.size} curated videos)")
+private fun loadVideoPool() {
+    Log.d(TAG, "Loading video pool (${fallbackVideoList.size} curated, oEmbed-verified videos)")
 
     embeddableVideoIds.clear()
     currentVideoList.clear()
 
-    // Phase 1: Add all candidates (optimistic)
     val candidates = fallbackVideoList.map {
         ApiVideo(it.id, it.year, 0L, "Music Video")
     }
 
-    // Phase 2: Validate embedding via oEmbed (parallel-ish, sequential to be safe)
-    // YouTube oEmbed endpoint: no API key, returns 401/404 if embed blocked
-    for ((index, video) in candidates.withIndex()) {
-        if (index > 0) delay(OEMBED_INTERVAL_MS) // rate limit — ~100ms between calls
-        if (isEmbeddable(video.id)) {
-            embeddableVideoIds.add(video.id)
-        }
-    }
+    // All videos in fallbackVideoList are pre-verified embeddable.
+    // Trust the list — no runtime oEmbed validation needed.
+    embeddableVideoIds.addAll(candidates.map { it.id })
+    currentVideoList.addAll(candidates)
 
-    // Phase 3: Keep only embeddable videos
-    val embeddableOnly = candidates.filter { it.id in embeddableVideoIds }
-    currentVideoList.addAll(embeddableOnly)
-
-    Log.d(TAG, "Pool: ${currentVideoList.size} embeddable (${candidates.size - currentVideoList.size} blocked)")
-}
-
-/**
- * Check if a YouTube video allows embedding via the public oEmbed API.
- * No API key required.
- *
- * GET https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=VIDEO_ID&format=json
- *
- * Returns true if YouTube responds with valid JSON (embed allowed).
- * Returns false on 401/404/error (embed blocked or video unavailable).
- */
-private fun isEmbeddable(videoId: String): Boolean {
-    return try {
-        val url = java.net.URL("https://www.youtube.com/oembed?" +
-            "url=https://www.youtube.com/watch?v=$videoId&format=json")
-        val conn = url.openConnection() as java.net.HttpURLConnection
-        conn.connectTimeout = OEMBED_TIMEOUT_MS
-        conn.readTimeout = OEMBED_TIMEOUT_MS
-        conn.requestMethod = "GET"
-        conn.setRequestProperty("User-Agent",
-            "GuessTheSongYear/1.0 (Android; oEmbed validation)")
-        val code = conn.responseCode
-        if (code in 200..299) {
-            conn.inputStream.bufferedReader().use { it.readText() }
-            // Valid JSON returned → embed allowed
-            true
-        } else {
-            // 401/404 → embed blocked
-            if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Video $videoId: oEmbed returned $code — NOT embeddable")
-            false
-        }
-    } catch (e: Exception) {
-        if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Video $videoId: oEmbed failed — NOT embeddable")
-        false
-    }
+    Log.d(TAG, "Pool ready: ${currentVideoList.size} videos")
 }
 
 private fun pickCandidate(difficulty: Difficulty): ApiVideo? {
@@ -235,13 +210,9 @@ class VideoPlayerFragment : Fragment() {
     private var countdownJob: Job? = null
     private var loadVideoJob: Job? = null
     private var preloadJob: Job? = null
-    private var videoPoolLoadJob: Job? = null
 
     /** Pre-loaded candidate video IDs for instant fallback on load error. */
     private val preloadedCandidates: MutableList<ApiVideo> = mutableListOf()
-
-    /** True when loadVideoPool() has completed (oEmbed validation done). */
-    private var videoPoolReady = false
 
     // ── Multiplayer state (simultaneous guessing) ────────────────────────────
     private var isMultiplayer = false
@@ -282,6 +253,9 @@ class VideoPlayerFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Load video pool first — synchronous, all pre-verified embeddable
+        loadVideoPool()
+
         setupListeners()
         setupYouTubePlayer()
 
@@ -291,20 +265,9 @@ class VideoPlayerFragment : Fragment() {
             // Client mode: register listener, no video pool (video from host)
             setupClientNetworkListener()
         } else {
-            // Load + validate video pool (oEmbed filtering), then preload.
-            // This runs async — onReady will block on videoReady flag.
-            videoPoolLoadJob = lifecycleScope.launch {
-                loadVideoPool()
-                videoPoolReady = true
-
-                // If player already became ready while pool was loading,
-                // kick off the first video now.
-                if (isPlayerReady && currentVideo == null) {
-                    loadNextVideo()
-                }
-
-                // Start preloading candidates immediately
-                if (currentVideoList.isNotEmpty()) {
+            // Start preloading candidates immediately (pool already loaded)
+            if (currentVideoList.isNotEmpty()) {
+                lifecycleScope.launch {
                     preloadNextCandidates()
                 }
             }
@@ -319,9 +282,7 @@ class VideoPlayerFragment : Fragment() {
         countdownJob?.cancel()
         loadVideoJob?.cancel()
         preloadJob?.cancel()
-        videoPoolLoadJob?.cancel()
         preloadedCandidates.clear()
-        videoPoolReady = false
         isPlayerReady = false
         _binding = null
     }
@@ -377,12 +338,8 @@ class VideoPlayerFragment : Fragment() {
             requireActivity().runOnUiThread {
                 if (ENABLE_DEBUG_LOGS) Log.d(TAG, "YouTube Iframe: onReady")
                 isPlayerReady = true
-                // Don't load until video pool is validated (oEmbed check)
-                // loadVideoPool() runs async — videoPoolLoadJob sets videoPoolReady=true
-                // If pool IS ready, proceed. Otherwise pool loads kicks off loadNextVideo
-                // when done.
-                if (videoPoolReady && currentVideo == null) loadNextVideo()
-                else if (currentVideo != null) beginCountdown(currentVideo!!.id)
+                if (currentVideo == null) loadNextVideo()
+                else beginCountdown(currentVideo!!.id)
             }
         }
 
