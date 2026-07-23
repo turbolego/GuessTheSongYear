@@ -1,6 +1,9 @@
 package com.turbolego.songguesser
 
 import android.app.Service
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
@@ -12,8 +15,9 @@ import android.net.NetworkInfo
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.p2p.WifiP2pInfo
-import android.net.wifi.p2p.WifiP2pManager
 import android.net.wifi.WifiManager
+import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import kotlinx.coroutines.*
@@ -71,7 +75,8 @@ class HostGameService : Service() {
                 putExtra(EXTRA_PLAYER_NAME, playerName)
                 putExtra(EXTRA_TRANSPORT, transport)
             }
-            context.startForegroundService(intent)
+            // startService — service calls startForeground() itself
+            context.startService(intent)
         }
 
         /**
@@ -188,6 +193,34 @@ class HostGameService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand")
+        
+        // Foreground notification required within 5 seconds for foreground services
+        val channelId = "game_network"
+        val channelName = "Game Network"
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId, channelName, NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Nettverksspill-tjeneste"
+                setShowBadge(false)
+            }
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.createNotificationChannel(channel)
+        }
+        
+        val notif = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, channelId)
+        } else {
+            Notification.Builder(this)
+        }.apply {
+            setContentTitle("GuessTheSongYear")
+            setContentText("Nettverksspill aktivt")
+            setSmallIcon(android.R.drawable.ic_dialog_info)
+        }.build()
+        
+        startForeground(1, notif)
+        
         hostName = intent?.getStringExtra(EXTRA_PLAYER_NAME) ?: "Host"
         transport = intent?.getStringExtra(EXTRA_TRANSPORT) ?: Protocol.TRANSPORT_WIFI
         startHosting()
@@ -304,21 +337,20 @@ class HostGameService : Service() {
     }
 
     private fun onGroupOwnerReady() {
-            Log.d(TAG, "Wi-Fi: Group owner ready")
-            networkListener?.onHostingStatus("WiFi Direct gruppe opprettet")
+        Log.d(TAG, "Wi-Fi: Group owner ready")
+        networkListener?.onHostingStatus("WiFi Direct gruppe opprettet")
 
-            findP2pAddress()
-            val addrStr = p2pHostAddress?.hostAddress ?: "ukjent"
-            networkListener?.onHostingStatus("Adresse: $addrStr")
+        findP2pAddress()
+        val addrStr = p2pHostAddress?.hostAddress ?: "ukjent"
+        networkListener?.onHostingStatus("Adresse: $addrStr")
 
-            registerNsdService()
-            networkListener?.onHostingStatus("Registrerer spill-tjeneste via NSD")
+        registerNsdService()
+        networkListener?.onHostingStatus("Registrerer spill-tjeneste via NSD")
 
-            startTcpServerSocket()
-            networkListener?.onHostingStatus("Server lytter pa port 8888")
+        startTcpServerSocket()
 
-            networkListener?.onHostingStarted(sessionId ?: "unknown", hostName)
-        }
+        networkListener?.onHostingStarted(sessionId ?: "unknown", hostName)
+    }
 
     private fun findP2pAddress() {
         try {
@@ -861,6 +893,9 @@ class HostGameService : Service() {
 
     private fun shutdown() {
         Log.d(TAG, "Shutting down HostGameService")
+        
+        // Remove foreground notification
+        try { stopForeground(true) } catch (_: Exception) {}
 
         acceptJob?.cancel()
         acceptJob = null
