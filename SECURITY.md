@@ -13,8 +13,11 @@
 3. [Findings](#findings)
    - [CRITICAL: InnerTube Reverse-Engineered API](#critical-innertube-reverse-engineered-api)
    - [HIGH: No TLS on Multiplayer TCP Transport](#high-no-tls-on-multiplayer-tcp-transport)
-   - [HIGH: Minimal Input Validation in TCP Protocol Handler](#high-minimal-input-validation-in-tcp-protocol-handler)
+   - [HIGH: No Input Validation or Rate Limiting](#high-no-input-validation-or-rate-limiting)
+   - [HIGH: LAN Scan Floods Network with Concurrent Probes](#high-lan-scan-floods-network-with-concurrent-probes)
+   - [HIGH: Bluetooth MissingPermission Suppression](#high-bluetooth-missingpermission-suppression)
    - [HIGH: GitHub Actions `contents: write` Token Permissions](#high-github-actions-contents-write-token-permissions)
+   - [MEDIUM: IP Addresses Logged in Cleartext](#medium-ip-addresses-logged-in-cleartext)
    - [MEDIUM: Hardcoded Video Year Database Extractable](#medium-hardcoded-video-year-database-extractable)
    - [MEDIUM: ProGuard Rules Allow Reflection-Based Access](#medium-proguard-rules-allow-reflection-based-access)
    - [MEDIUM: No Network Security Configuration](#medium-no-network-security-configuration)
@@ -45,8 +48,8 @@ The app does **not** collect user data, use analytics, contact external servers 
 | Severity | Count |
 |----------|-------|
 | 🔴 **CRITICAL** | 1 |
-| 🟠 **HIGH** | 3 |
-| 🟡 **MEDIUM** | 4 |
+| 🟠 **HIGH** | 5 |
+| 🟡 **MEDIUM** | 5 |
 | 🔵 **LOW** | 2 |
 | ⚪ **INFO** | 4 |
 
@@ -122,31 +125,33 @@ Any device on the same network can:
 
 ---
 
-### 🟠 HIGH: Minimal Input Validation in TCP Protocol Handler
+### 🟠 HIGH: No Input Validation or Rate Limiting
 
-**File:** `app/src/main/java/com/turbolego/songguesser/HostGameService.kt`, lines 228–281 (`handleClient`)
+**Files:**
+- `app/src/main/java/com/turbolego/songguesser/HostGameService.kt`, lines 228–281 (`handleClient`)
+- `app/src/main/java/com/turbolego/songguesser/JoinGameService.kt` (`readLine()` in message loop)
 
 **Description:**
-The `handleMessage()` method processes arbitrary JSON received from any connected client. The protocol accepts:
+The protocol handler accepts arbitrary JSON from any connected client with **no authentication, no sender verification, and no rate limiting**. Specific problems:
 
-- `GUESS_BLIND` — stores a guess per player name (no ownership verification)
-- `END` — ends the session for everyone (any client can send this)
-- `MSG_JOIN` — adds a player with any name to the session
-
-No authentication, no sender verification, no rate limiting.
+- `GUESS_BLIND` accepts a `playerName` field that is **self-declared** — any client can submit guesses for any player
+- `END` from any single client ends the session for **everyone**
+- `readLine()` has **no maximum input size** — a malicious client could send gigabytes of data and exhaust heap memory
+- **No rate limiting** — unlimited messages per second per connection
 
 **Risk:**
-- A malicious client connected to the TCP port can:
+- A malicious client on the same LAN can:
   - End everyone's game session (`END`)
-  - Submit fake blind guesses (`GUESS_BLIND` with any player name)
-  - Join under spoofed names
-  - Flood the server with connections and exhaust resources
+  - Submit fake blind guesses under any player name
+  - Flood the server with garbage data, exhausting memory
+  - Open unlimited concurrent connections, exhausting thread pool
 
 **Recommendation:**
-- 🟠 **High:** Validate that only authenticated players can send GUESS_BLIND for their own name
-- 🟡 **Medium:** Add rate limiting per connection
-- 🟡 **Medium:** Require a session token after JOIN that must be included in subsequent messages
-- 🔵 **Low:** Limit simultaneous connections to a reasonable maximum
+- 🟠 **High:** Validate that only authenticated players can send `GUESS_BLIND` for their own name
+- 🟠 **High:** Add maximum input size limit to `readLine()` (e.g., 64KB)
+- 🟡 **Medium:** Add rate limiting per connection (e.g., max 10 messages/second)
+- 🟡 **Medium:** Require a session token after `JOIN` that must be included in all subsequent messages
+- 🔵 **Low:** Limit simultaneous connections to a reasonable maximum (e.g., 16)
 
 ---
 
@@ -183,6 +188,72 @@ jobs:
     permissions:
       contents: write   # only this job gets write
       id-token: write   # if needed for signing
+```
+
+---
+
+### 🟠 HIGH: LAN Scan Floods Network with Concurrent Probes
+
+**File:** `app/src/main/java/com/turbolego/songguesser/JoinGameService.kt`, lines 195–230 (`scanLanForHosts`)
+
+**Description:**
+The LAN scanner probes **all 253 IPs** in `192.168.x.2–254` concurrently using coroutines:
+
+```kotlin
+subnets.flatMap { subnet ->
+    (2..254).map { offset ->
+        async(scanDispatcher) { probeHost(...) }
+    }
+}
+```
+
+This launches **up to 762 concurrent TCP connections** (253 per subnet × up to 3 subnets). Each connection has an 800ms timeout.
+
+**Risk:**
+- Network flooding — may be flagged by network monitoring/IDS
+- Battery drain on mobile devices
+- Potential packet loss or interference with other network activity
+- On congested networks, the flood of SYN packets may cause switch/router CPU spikes
+
+**Recommendation:**
+- 🟡 **Medium:** Throttle concurrent probes to 50–100 at a time
+- 🟡 **Medium:** Add exponential backoff for retry scanning
+- 🔵 **Low:** Cache last-known-working subnet and prioritize it
+
+---
+
+### 🟠 HIGH: Bluetooth MissingPermission Suppression
+
+**File:** `app/src/main/java/com/turbolego/songguesser/JoinGameService.kt`, line 322
+
+**Description:**
+The Bluetooth connection method uses `@Suppress("MissingPermission")` without runtime permission checks:
+
+```kotlin
+@Suppress("MissingPermission")
+private suspend fun connectBluetooth(address: String) {
+    val device = bluetoothAdapter?.getRemoteDevice(address)
+    socket = device?.createRfcommSocketToServiceRecord(btUuid)
+    socket?.connect()
+}
+```
+
+**Risk:**
+- On Android 12+ (API 31+), `BLUETOOTH_CONNECT` is a **runtime permission**
+- Without checking it at runtime, `bluetoothAdapter?.getRemoteDevice()` or `socket.connect()` will **crash with SecurityException**
+- The suppression annotation hides compiler warnings but does not prevent runtime crashes
+
+**Recommendation:**
+- 🟠 **High:** Add runtime permission check before Bluetooth operations:
+
+```kotlin
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+    ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+    != PackageManager.PERMISSION_GRANTED
+) {
+    // Request permission or show error
+    return
+}
 ```
 
 ---
@@ -319,6 +390,46 @@ android {
     }
 }
 ```
+
+---
+
+### 🟡 MEDIUM: IP Addresses Logged in Cleartext
+
+**Files:**
+- `app/src/main/java/com/turbolego/songguesser/JoinGameService.kt`, lines 182, 218, 298, 305
+- `app/src/main/java/com/turbolego/songguesser/HostGameService.kt`, lines 87–110
+
+**Description:**
+Several log statements in the multiplayer code expose IP addresses, player names, and game data:
+
+```kotlin
+// JoinGameService.kt:182
+Log.d(TAG, "LAN scan: my IP = $myIp")                          // device IP
+Log.d(TAG, "Found host: ${host.hostName} at $ip")              // discovered IP
+Log.d(TAG, "Connecting to $ip:$port")                          // target IP
+Log.d(TAG, "TCP connected to $ip:$port")                       // connected IP
+Log.d(TAG, "JOIN_ACK received: session=$sessionId, host=$hostName, players=$playerNamesList")  // player names
+Log.d(TAG, "Player list updated: $playersJson")                 // full player state
+Log.d(TAG, "VIDEO received: $videoId ($year - $title)")         // video data
+Log.d(TAG, "REVEAL_RESULT received: $results")                  // guess results
+```
+
+**Risk:**
+- On debug builds (default), IP addresses and player names are visible via `logcat`
+- Any app with `READ_LOGS` permission (granted to ADB/USB-connected devices) can read these
+- Video IDs and years are logged — visible in logcat, but these are public data
+
+**Recommendation:**
+- 🔵 **Low:** Remove or reduce logging of IP addresses in release builds:
+
+```kotlin
+if (BuildConfig.DEBUG) {
+    Log.d(TAG, "Found host at $ip")
+}
+```
+
+- 🔵 **Low:** Consider using `Log.wtf()` instead of `Log.d()` for truly sensitive data
+- ⚪ **Note:** This is **low risk** on production builds where `minifyEnabled = true` strips debug logs, but debug APKs (which include logcat output) may be distributed
 
 ---
 
@@ -519,6 +630,7 @@ The app requests permissions at startup for Bluetooth (on Android 12+) and Camer
 | Date | Author | Changes |
 |------|--------|---------|
 | 2026-07-23 | Hermes Agent | Initial audit, master @ f169105 |
+| 2026-07-23 | Hermes Agent | Added findings from automated scan: LAN flood, Bluetooth MissingPermission, IP logging, rate limiting. Fixed: CI permissions (job-level), unused permissions removed, allowBackup=false. master @ e28fa5d |
 
 ---
 
