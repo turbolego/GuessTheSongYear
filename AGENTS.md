@@ -1,9 +1,11 @@
 # GuessTheSongYear — AGENTS.md
 
 ## Branch: master
-## Stack: Kotlin, Android (minSdk 24, targetSdk 37), Material3, InnerTube API
+## Stack: Kotlin, Android (minSdk 24, targetSdk 37), Material3, WebView-based YouTube player
 
 This is a music-quiz Android app. Users watch a YouTube music video and guess its release year.
+
+**Video source:** Curated hardcoded list of ~40 known music videos. YouTube playback via **official Iframe Player API in WebView** — zero API keys, zero ToS violations.
 
 ## Multiplayer Architecture
 
@@ -34,10 +36,9 @@ Discovery happens automatically when joiners open the "Join" tab. No manual IP e
 `gradle/libs.versions.toml`:
 - compileSdk=37, minSdk=24, targetSdk=37
 - AGP 9.3.0, Kotlin 2.4.10
-- YouTube Player 13.0.0 (com.pierfrancescosoffritti.androidyoutubeplayer)
 - ViewBinding enabled
-- OkHttp 4.12.0 (for InnerTube API)
 - ZXing 3.5.3 (QR code generation + scanning)
+- **No** YouTube Player library, **no** InnerTube API, **no** OkHttp
 
 ## Release signed APK
 
@@ -50,8 +51,7 @@ Unsigned release APK: `app/build/outputs/apk/release/app-release-unsigned.apk`
 | File | Purpose |
 |------|---------|
 | `MainActivity.kt` | Activity, toolbar, menu, difficulty switching, QR result forwarding |
-| `VideoPlayerFragment.kt` | Core game: player, guess input, scoring |
-| `YouTubeSearchService.kt` | InnerTube API (⚠️ reverse-engineered, ToS risk) |
+| `VideoPlayerFragment.kt` | Core game: WebView-based YouTube Iframe player, JS bridge, guess input, scoring |
 | `ScoreManager.kt` | Points, streaks, accuracy |
 | `Difficulty.kt` | Easy/Medium/Hard config |
 | `GameSessionManager.kt` | Multiplayer session management (TCP via HostGameService/JoinGameService) |
@@ -64,7 +64,7 @@ Unsigned release APK: `app/build/outputs/apk/release/app-release-unsigned.apk`
 ## Security
 
 See [`SECURITY.md`](./SECURITY.md) for full audit. Key issues:
-1. 🚨 **InnerTube API** — reverse-engineered YouTube API, ToS violation
+1. ✅ ~~InnerTube API~~ — resolved, replaced with official WebView + Iframe Player API
 2. 🟠 **No TLS** — multiplayer messages in cleartext
 3. 🟠 **Minimal protocol validation** — no auth tokens in messages
-4. 🟠 **CI token permissions** — `contents: write` too broad
+4. 🟠 **CI token permissions** — `contents: write` now scoped to job level

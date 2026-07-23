@@ -6,17 +6,15 @@
     android:layout_height="match_parent"
     android:background="@color/surface">
 
-    <!-- YouTube Player -->
-    <com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
+    <!-- YouTube Player (WebView + Iframe API — ToS-compliant) -->
+    <WebView
         android:id="@+id/youtube_player_view"
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintDimensionRatio="16:9"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:showFullScreenButton="true"
-        app:enableAutomaticInitialization="false" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <!-- Video overlay (toggle to hide video, keep audio) -->
     <View

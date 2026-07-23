@@ -8,9 +8,7 @@ Android app (Kotlin, minSdk 24, targetSdk 37) where users guess the release year
 ```
 app/src/main/java/com/turbolego/songguesser/
 ├── MainActivity.kt              # Single activity; hosts fragment, menu, difficulty, QR result forwarding
-├── VideoPlayerFragment.kt       # Core game screen with guessing mechanics
-├── YouTubeSearchService.kt      # InnerTube API service (reverse-engineered YouTube API — ToS risk)
-├── YouTubeModels.kt             # Data models for YouTube/InnerTube API responses
+├── VideoPlayerFragment.kt       # Core game: WebView-based YouTube Iframe player, JS bridge, scoring
 ├── ScoreManager.kt              # Scoring system, streaks, accuracy
 ├── Difficulty.kt                # Difficulty levels enum
 ├── GameSessionManager.kt        # Multiplayer session state management
@@ -34,10 +32,9 @@ app/src/main/java/com/turbolego/songguesser/
 5. **🌐 LAN Multiplayer** (2 modes):
    - **Host**: TCP server on port 8888, shows IP + QR code, players connect and play together
    - **Join**: Auto-scans LAN for hosts (HELLO/ACK on all 192.168.x.2–254), QR scanning fallback, manual IP entry fallback
-6. **💾 Persistent Fallback**: 38 hardcoded music videos used when API fails
-7. **🔍 YouTube InnerTube API**: No API key required (reverse-engineered, undocumented endpoint — ToS risk)
-8. **🌓 Dark Theme**: Material3 dark design with amber accent
-9. **📷 QR Codes**: ZXing-based QR generation (host) and scanning (joiner)
+6. **📺 YouTube Playback**: WebView + official YouTube Iframe Player API — no keys, ToS-compliant
+7. **🌓 Dark Theme**
+8. **📷 QR Codes**
 
 ## Multiplayer Protocol
 
@@ -58,9 +55,7 @@ All communication is JSON over stream, newline-delimited.
 | AppCompat | 1.7.1 | Compatibility |
 | Material | 1.14.0 | Material Design |
 | ConstraintLayout | 2.2.1 | Layout |
-| YouTube Player | 13.0.0 | YouTube playback |
 | Kotlinx Coroutines | 1.11.0 | Async |
-| OkHttp | 4.12.0 | InnerTube HTTP |
 | ZXing Core | 3.5.3 | QR code generation |
 | ZXing Android Embedded | 4.3.0 | QR camera scanning |
 
@@ -115,7 +110,7 @@ GitHub Actions workflow under `.github/workflows/build-apk.yml`:
 ## Game Flow
 
 ### Single Player
-1. App starts → fetch videos from InnerTube API (or fallback)
+1. App starts → load curated video pool
 2. Random video selected → 3-second countdown
 3. Video plays → user guesses year
 4. Feedback shown with points earned
@@ -142,7 +137,7 @@ See [SECURITY.md](SECURITY.md) for full audit findings. Critical items:
 
 ## Known Issues
 
-1. **InnerTube API**: Undocumented YouTube API may change/break. Fallback list used as backup.
+1. **Static video pool**: ~40 curated videos — may repeat after 40+ rounds
 2. **Year Accuracy**: Some fallback video years may be approximate (not all have verified release dates).
 3. **No TLS**: Multiplayer traffic is visible to anyone on the same network.
 4. **No Protection from Malicious Clients**: Any device on the LAN can connect and disrupt gameplay.

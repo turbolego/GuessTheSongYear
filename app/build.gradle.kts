@@ -68,15 +68,10 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
-    // YouTube Player
-    implementation(libs.core)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
-
-    // OkHttp for InnerTube API
-    implementation(libs.okhttp)
 
     // QR Code generation + scanning
     implementation(libs.zxing.core)

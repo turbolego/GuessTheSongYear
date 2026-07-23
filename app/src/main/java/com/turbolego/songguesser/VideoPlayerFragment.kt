@@ -15,9 +15,10 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
+import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import com.turbolego.songguesser.databinding.FragmentVideoPlayerBinding
 import com.turbolego.songguesser.databinding.ItemPlayerGuessBinding
 import kotlinx.coroutines.Job
@@ -29,6 +30,7 @@ private const val TAG = "VideoPlayerFragment"
 private const val MAX_RETRY_ATTEMPTS = 5
 private const val YEAR_MIN = 1960
 private const val YEAR_MAX = 2025
+private const val ENABLE_DEBUG_LOGS = false  // set to true for WebView debug
 
 data class KnownVideo(val id: String, val year: Int)
 data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
@@ -54,15 +56,11 @@ val playedVideoIds: MutableSet<String> = mutableSetOf()
 var duplicateSkipCount = 0
 
 private suspend fun fetchVideosFromApi() {
-    Log.d(TAG, "Fetching videos from InnerTube API...")
-    val apiVideos = try { YouTubeSearchService.searchMusicVideos() } catch (e: Exception) { emptyList() }
-    if (apiVideos.isNotEmpty()) {
-        Log.d(TAG, "Got ${apiVideos.size} from API")
-        currentVideoList.clear(); currentVideoList.addAll(apiVideos)
-    } else {
-        Log.w(TAG, "Using fallback (${fallbackVideoList.size} videos)")
-        currentVideoList.clear(); currentVideoList.addAll(fallbackVideoList.map { ApiVideo(it.id, it.year, 0, "") })
-    }
+    Log.d(TAG, "Loading video pool (${fallbackVideoList.size} curated videos)")
+    currentVideoList.clear()
+    currentVideoList.addAll(fallbackVideoList.map {
+        ApiVideo(it.id, it.year, 0L, "Music Video")
+    })
 }
 
 private fun pickCandidate(difficulty: Difficulty): ApiVideo? {
@@ -157,7 +155,6 @@ class VideoPlayerFragment : Fragment() {
     private var _binding: FragmentVideoPlayerBinding? = null
     private val binding get() = _binding!!
 
-    private var youTubePlayer: YouTubePlayer? = null
     private var currentVideo: ApiVideo? = null
     private var isPlayerReady = false
     private var hasGuessedThisRound = false
@@ -226,7 +223,6 @@ class VideoPlayerFragment : Fragment() {
         super.onDestroyView()
         countdownJob?.cancel()
         loadVideoJob?.cancel()
-        youTubePlayer = null
         isPlayerReady = false
         _binding = null
     }
@@ -269,61 +265,188 @@ class VideoPlayerFragment : Fragment() {
         binding.buttonRevealAnswers.setOnClickListener { revealAnswers() }
     }
 
-    private fun setupYouTubePlayer() {
-        lifecycle.addObserver(binding.youtubePlayerView)
-
-        val options = IFramePlayerOptions.Builder(requireContext())
-            .controls(1).fullscreen(1).build()
-
-        binding.youtubePlayerView.initialize(object : AbstractYouTubePlayerListener() {
-            override fun onReady(yp: YouTubePlayer) {
-                youTubePlayer = yp
+    /**
+     * Bridge between WebView YouTube JS and Kotlin.
+     * Methods called from YouTube Iframe API callbacks via JavaScript.
+     *
+     * All @JavascriptInterface methods run on a WebView internal thread —
+     * must post to main looper for any UI touches.
+     */
+    inner class YouTubeBridge {
+        @JavascriptInterface
+        fun onReady() {
+            requireActivity().runOnUiThread {
+                if (ENABLE_DEBUG_LOGS) Log.d(TAG, "YouTube Iframe: onReady")
                 isPlayerReady = true
                 if (currentVideo == null) loadNextVideo()
                 else beginCountdown(currentVideo!!.id)
             }
+        }
 
-            override fun onStateChange(
-                yp: YouTubePlayer,
-                state: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState,
-            ) {
-                if (state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.PLAYING) {
+        @JavascriptInterface
+        fun onStateChange(state: Int) {
+            requireActivity().runOnUiThread {
+                // YouTube PlayerState:
+                // -1 = unstarted, 0 = ended, 1 = playing, 2 = paused,
+                //  3 = buffering, 5 = video cued
+                if (state == 1) { // PLAYING
                     errorRetryCount = 0
-                    Log.d(TAG, "Playing: ${currentVideo?.id}")
+                    if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Playing: ${currentVideo?.id}")
                     enableGuessing()
                     if (currentDifficulty.hintEnabled && !isMultiplayer) showHint()
                 }
             }
+        }
 
-            override fun onError(
-                yp: YouTubePlayer,
-                error: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError,
-            ) {
-                Log.e(TAG, "Player error: ${error.name} (attempt ${errorRetryCount + 1})")
+        @JavascriptInterface
+        fun onError(error: Int) {
+            requireActivity().runOnUiThread {
+                if (ENABLE_DEBUG_LOGS) Log.e(TAG, "Player error: $error (attempt ${errorRetryCount + 1})")
                 errorRetryCount++
-
                 if (errorRetryCount >= MAX_RETRY_ATTEMPTS) {
                     Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_LONG).show()
                     binding.buttonNextVideo.visibility = View.VISIBLE
                     binding.progressBar.visibility = View.GONE
-                    return
-                }
-
-                lifecycleScope.launch {
-                    val candidate = pickCandidate(currentDifficulty)
-                    if (candidate != null) {
-                        Log.d(TAG, "Auto-switching to: ${candidate.id}")
-                        currentVideo = candidate
-                        playedVideoIds.add(candidate.id)
-                        try { youTubePlayer?.loadVideo(candidate.id, 0f) } catch (_: Exception) {}
-                    } else {
-                        Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_LONG).show()
-                        binding.buttonNextVideo.visibility = View.VISIBLE
-                        binding.progressBar.visibility = View.GONE
-                    }
+                } else {
+                    autoSwitchVideoOnError()
                 }
             }
-        }, options)
+        }
+    }
+
+    // ── YouTube Iframe HTML ──────────────────────────────────────────────
+
+    /**
+     * Build the HTML page hosting the official YouTube Iframe Player API.
+     * The 'Android' JS object is the bridge (added via addJavascriptInterface).
+     */
+    private fun buildIframeHtml(): String = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+            <style>
+                * { margin: 0; padding: 0; }
+                body { background: #000; overflow: hidden; }
+                #player { width: 100vw; height: 100vh; }
+            </style>
+        </head>
+        <body>
+            <div id="player"></div>
+            <script src="https://www.youtube.com/iframe_api"></script>
+            <script>
+                var player;
+                function onYouTubeIframeAPIReady() {
+                    player = new YT.Player('player', {
+                        height: '100%',
+                        width: '100%',
+                        videoId: '',
+                        playerVars: {
+                            'playsinline': 1,
+                            'controls': 1,
+                            'rel': 0,
+                            'fs': 1,
+                            'modestbranding': 1,
+                            'iv_load_policy': 3
+                        },
+                        events: {
+                            'onReady': onPlayerReady,
+                            'onStateChange': onPlayerStateChange,
+                            'onError': onPlayerError
+                        }
+                    });
+                }
+
+                function onPlayerReady(event) {
+                    Android.onReady();
+                }
+
+                function onPlayerStateChange(event) {
+                    Android.onStateChange(event.data);
+                }
+
+                function onPlayerError(event) {
+                    Android.onError(event.data);
+                }
+
+                // ── Called from Kotlin via evaluateJavascript ──
+
+                function loadVideo(videoId) {
+                    player.loadVideoById(videoId);
+                }
+
+                function cueVideo(videoId) {
+                    player.cueVideoById(videoId);
+                }
+
+                function playVideo() {
+                    player.playVideo();
+                }
+
+                function pauseVideo() {
+                    player.pauseVideo();
+                }
+            </script>
+        </body>
+        </html>
+    """.trimIndent()
+
+    // ── WebView helpers ──────────────────────────────────────────────────
+
+    private fun loadVideoInWebView(videoId: String) {
+        val webView = binding.youtubePlayerView as WebView
+        webView.evaluateJavascript("javascript:loadVideo('$videoId')", null)
+    }
+
+    private fun cueVideoInWebView(videoId: String) {
+        val webView = binding.youtubePlayerView as WebView
+        webView.evaluateJavascript("javascript:cueVideo('$videoId')", null)
+    }
+
+    private fun autoSwitchVideoOnError() {
+        lifecycleScope.launch {
+            val candidate = pickCandidate(currentDifficulty)
+            if (candidate != null) {
+                Log.d(TAG, "Auto-switching to: ${candidate.id}")
+                currentVideo = candidate
+                playedVideoIds.add(candidate.id)
+                try { cueVideoInWebView(candidate.id) } catch (_: Exception) {}
+            } else {
+                Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_LONG).show()
+                binding.buttonNextVideo.visibility = View.VISIBLE
+                binding.progressBar.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun setupYouTubePlayer() {
+        val webView = binding.youtubePlayerView as WebView
+
+        webView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            mediaPlaybackRequiresUserGesture = false  // allow autoplay after JS load
+        }
+        webView.webChromeClient = WebChromeClient()   // enables media controls, fullscreen JS
+        webView.webViewClient = WebViewClient()
+
+        // Bridge — exposed as 'Android' in JavaScript
+        webView.addJavascriptInterface(YouTubeBridge(), "Android")
+
+        // Load the iframe HTML
+        val html = buildIframeHtml()
+        webView.loadDataWithBaseURL(
+            "https://www.youtube.com",
+            html,
+            "text/html",
+            "UTF-8",
+            null
+        )
+
+        if (ENABLE_DEBUG_LOGS) {
+            @Suppress("DEPRECATION")
+            WebView.setWebContentsDebuggingEnabled(true) // Chrome DevTools for WebView
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -627,7 +750,7 @@ class VideoPlayerFragment : Fragment() {
             }
             binding.textViewCountdown.visibility = View.GONE
             try {
-                youTubePlayer?.loadVideo(videoId, 0f)
+                loadVideoInWebView(videoId)
             } catch (e: Exception) {
                 Log.e(TAG, "loadVideo threw", e)
                 Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
