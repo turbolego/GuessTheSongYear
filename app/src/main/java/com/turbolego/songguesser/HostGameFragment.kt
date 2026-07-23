@@ -4,8 +4,10 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,17 +17,24 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.MultiFormatWriter
+import com.google.zxing.common.BitMatrix
 import com.turbolego.songguesser.databinding.FragmentHostGameBinding
 import com.turbolego.songguesser.GameSessionManager.GameSession
 import com.turbolego.songguesser.GameSessionManager.RevealResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Fragment for hosting a network multiplayer game.
  *
  * Starts [HostGameService] which opens a plain TCP server socket.
- * The host's IP:port is shown in the UI — joiners enter it manually.
+ * Shows the host's IP:port and a QR code that joiners can scan.
  */
 class HostGameFragment : Fragment(), GameNetworkListener {
 
@@ -96,7 +105,6 @@ class HostGameFragment : Fragment(), GameNetworkListener {
         binding.textViewHostStatus.text = "Starter server..."
         binding.progressBarHost.visibility = View.VISIBLE
 
-        // Set listener before start — service picks it up via pendingListener
         HostGameService.pendingListener = this
         HostGameService.start(requireContext(), hostName)
 
@@ -170,6 +178,33 @@ class HostGameFragment : Fragment(), GameNetworkListener {
         Toast.makeText(requireContext(), "Kopiert: $ip", Toast.LENGTH_SHORT).show()
     }
 
+    /** Generate a QR code bitmap from text using ZXing. Runs on background thread. */
+    private fun showQrCode(content: String) {
+        lifecycleScope.launch {
+            val qrBitmap = withContext(Dispatchers.IO) {
+                try {
+                    val writer = MultiFormatWriter()
+                    val bitMatrix: BitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, 512, 512)
+                    val bmp = Bitmap.createBitmap(512, 512, Bitmap.Config.RGB_565)
+                    for (x in 0 until 512) {
+                        for (y in 0 until 512) {
+                            bmp.setPixel(x, y, if (bitMatrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                        }
+                    }
+                    bmp
+                } catch (e: Exception) {
+                    Log.e(TAG, "QR code generation failed", e)
+                    null
+                }
+            }
+            qrBitmap?.let {
+                binding.imageViewQrCode.setImageBitmap(it)
+                binding.textViewQrLabel.visibility = View.VISIBLE
+                binding.imageViewQrCode.visibility = View.VISIBLE
+            }
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // GameNetworkListener
     // ═══════════════════════════════════════════════════════════════════════════
@@ -187,7 +222,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
     override fun onHostingStatus(status: String) {
         requireActivity().runOnUiThread {
             binding.textViewHostStatus.text = status
-            // If the status contains an IP like "192.168.1.42:8888", show it big
+            // If the status contains an IP like "192.168.1.42:8888", show it big + QR
             val ipPattern = Regex("""\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+""")
             val match = ipPattern.find(status)
             if (match != null) {
@@ -196,6 +231,8 @@ class HostGameFragment : Fragment(), GameNetworkListener {
                 binding.textViewHostIp.visibility = View.VISIBLE
                 binding.buttonCopyIp.visibility = View.VISIBLE
                 binding.textViewTransportHint.text = "Del denne IP-adressen med andre spillere"
+                // Generate QR code
+                showQrCode(match.value)
             }
         }
     }
@@ -250,6 +287,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
     }
 
     companion object {
+        private const val TAG = "HostGameFragment"
         private const val REQUEST_BLUETOOTH_ADVERTISE = 1001
     }
 }

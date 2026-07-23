@@ -1,13 +1,14 @@
 package com.turbolego.songguesser
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import android.widget.Toast
-import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
+import com.google.zxing.integration.android.IntentIntegrator
+import com.google.zxing.integration.android.IntentResult
 import com.turbolego.songguesser.databinding.FragmentJoinGameBinding
 import com.turbolego.songguesser.GameSessionManager.GameSession
 import com.turbolego.songguesser.GameSessionManager.RevealResult
@@ -15,7 +16,7 @@ import com.turbolego.songguesser.GameSessionManager.RevealResult
 /**
  * Fragment for joining a network multiplayer game.
  *
- * Enter the host's IP:port and player name, then tap "Koble til".
+ * Enter the host's IP:port manually or scan the host's QR code.
  * On success, navigates to VideoPlayerFragment in client mode.
  */
 class JoinGameFragment : Fragment(), GameNetworkListener {
@@ -27,6 +28,11 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     private var hostIp: String = ""
     private var hostPort: Int = Protocol.WIFI_SERVER_PORT
     private var hasJoined = false
+
+    companion object {
+        private const val TAG = "JoinGameFragment"
+        private const val RC_QR_SCAN = 0x0000c0de // arbitrary request code
+    }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -58,6 +64,75 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
     private fun setupListeners() {
         binding.buttonConnect.setOnClickListener { connectToHost() }
+        binding.buttonScanQr.setOnClickListener { scanQrCode() }
+    }
+
+    // ── QR Scan ──────────────────────────────────────────────────────────────
+
+    private fun scanQrCode() {
+        val integrator = IntentIntegrator(requireActivity())
+        integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
+        integrator.setPrompt("Skann vertens QR-kode")
+        integrator.setCameraId(0) // back camera
+        integrator.setBeepEnabled(false)
+        integrator.setBarcodeImageEnabled(false)
+        integrator.setOrientationLocked(true)
+        // Initiate scan — result comes back via onActivityResult
+        integrator.initiateScan()
+    }
+
+    /**
+     * Handle QR scan result. Called by the host Activity when
+     * onActivityResult matches our request.
+     */
+    fun onQrScanResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        val result: IntentResult? = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+        if (result != null && result.contents != null) {
+            val scanned = result.contents.trim()
+            // The QR content should be an IP:port string
+            // Try to parse and fill in the IP field, then auto-connect
+            parseAndConnect(scanned)
+        } else {
+            Toast.makeText(requireContext(), "Kunne ikke lese QR-kode", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Parse potentially QR-scanned content and connect.
+     * Accepts "ip:port", "ip", or "http://ip:port".
+     */
+    private fun parseAndConnect(content: String) {
+        var ipText = content.trim()
+
+        // Strip scheme prefix if present
+        if (ipText.startsWith("http://")) ipText = ipText.removePrefix("http://")
+        else if (ipText.startsWith("https://")) ipText = ipText.removePrefix("https://")
+
+        // Strip trailing slash
+        ipText = ipText.trimEnd('/')
+
+        // Parse IP:port
+        val colonIndex = ipText.lastIndexOf(':')
+        val ip: String
+        val port: Int
+        if (colonIndex > 0) {
+            ip = ipText.substring(0, colonIndex).trim()
+            port = ipText.substring(colonIndex + 1).trim().toIntOrNull() ?: Protocol.WIFI_SERVER_PORT
+        } else {
+            ip = ipText.trim()
+            port = Protocol.WIFI_SERVER_PORT
+        }
+
+        // Validate IP format
+        val ipPattern = Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")
+        if (!ipPattern.matches(ip)) {
+            Toast.makeText(requireContext(), "Ugyldig IP i QR-kode: $ip", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Fill in the IP field and auto-connect
+        binding.editTextHostIp.setText(content)
+        connectToHost(ip, port)
     }
 
     // ── Connect ──────────────────────────────────────────────────────────────
@@ -71,11 +146,11 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
         val ipText = binding.editTextHostIp.text.toString().trim()
         if (ipText.isBlank()) {
-            Toast.makeText(requireContext(), "Skriv inn vertens IP", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "Skriv inn vertens IP eller skann QR", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Parse IP:port format (e.g. "192.168.1.42:8888")
+        // Parse IP:port format
         val colonIndex = ipText.lastIndexOf(':')
         val ip: String
         val port: Int
@@ -87,10 +162,20 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
             port = Protocol.WIFI_SERVER_PORT
         }
 
-        // Basic IP validation
         val ipPattern = Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")
         if (!ipPattern.matches(ip)) {
             Toast.makeText(requireContext(), "Ugyldig IP-adresse", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        connectToHost(ip, port)
+    }
+
+    /** Internal connect method used by both manual entry and QR scan. */
+    private fun connectToHost(ip: String, port: Int) {
+        playerName = binding.editTextPlayerName.text.toString().trim()
+        if (playerName.isBlank()) {
+            Toast.makeText(requireContext(), "Skriv inn navnet ditt", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -102,6 +187,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         binding.textViewConnectionStatus.text = "Kobler til $hostIp:$hostPort..."
         binding.progressBarJoin.visibility = View.VISIBLE
         binding.buttonConnect.isEnabled = false
+        binding.buttonScanQr.isEnabled = false
         binding.editTextPlayerName.isEnabled = false
         binding.editTextHostIp.isEnabled = false
 
@@ -112,13 +198,8 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     // GameNetworkListener
     // ═══════════════════════════════════════════════════════════════════════════
 
-    override fun onHostingStarted(sessionId: String, hostName: String) {
-        // Not applicable for joiner
-    }
-
-    override fun onServiceRegistered(serviceName: String) {
-        // Not applicable for joiner
-    }
+    override fun onHostingStarted(sessionId: String, hostName: String) { /* n/a */ }
+    override fun onServiceRegistered(serviceName: String) { /* n/a */ }
 
     override fun onJoinedSession(session: GameSession) {
         hasJoined = true
@@ -160,6 +241,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
             binding.textViewConnectionStatus.text = "Feil: $error"
             binding.progressBarJoin.visibility = View.GONE
             binding.buttonConnect.isEnabled = true
+            binding.buttonScanQr.isEnabled = true
             binding.editTextPlayerName.isEnabled = true
             binding.editTextHostIp.isEnabled = true
         }

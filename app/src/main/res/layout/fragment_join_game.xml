@@ -47,7 +47,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:hint="Vertens IP (f.eks. 192.168.1.42:8888)"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/buttonScanQr"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textInputLayoutName">
 
@@ -60,6 +60,21 @@
             android:textColor="@color/body_text"
             android:textColorHint="@color/muted_text" />
     </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Scan QR button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonScanQr"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="QR"
+        android:textSize="10sp"
+        app:icon="@android:drawable/ic_menu_camera"
+        app:iconSize="18dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/textInputLayoutHostIp"
+        app:layout_constraintTop_toTopOf="@+id/textInputLayoutHostIp" />
 
     <!-- Connect button -->
     <com.google.android.material.button.MaterialButton

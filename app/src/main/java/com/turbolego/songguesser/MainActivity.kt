@@ -1,6 +1,7 @@
 package com.turbolego.songguesser
 
 import android.content.DialogInterface
+import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -184,6 +185,15 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Avbryt", null)
             .show()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        // Forward QR scan result to JoinGameFragment if active
+        val joinFragment = supportFragmentManager.findFragmentById(R.id.fragment_container)
+        if (joinFragment is JoinGameFragment) {
+            joinFragment.onQrScanResult(requestCode, resultCode, data)
+        }
     }
 
     private fun showAbout() {
