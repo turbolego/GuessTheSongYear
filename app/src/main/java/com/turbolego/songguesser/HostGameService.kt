@@ -63,6 +63,9 @@ class HostGameService : Service() {
         @Volatile
         var instance: HostGameService? = null
 
+        @Volatile
+        var pendingListener: GameNetworkListener? = null
+
         private const val EXTRA_PLAYER_NAME = "player_name"
         private const val EXTRA_TRANSPORT = "transport"
 
@@ -75,8 +78,7 @@ class HostGameService : Service() {
                 putExtra(EXTRA_PLAYER_NAME, playerName)
                 putExtra(EXTRA_TRANSPORT, transport)
             }
-            // startService — service calls startForeground() itself
-            context.startService(intent)
+            context.startForegroundService(intent)
         }
 
         /**
@@ -188,7 +190,11 @@ class HostGameService : Service() {
         super.onCreate()
         instance = this
         Log.d(TAG, "onCreate")
-        // Get system services sparingly — transport is known in onStartCommand
+        // Pick up any pending listener set before start() — eliminates race
+        pendingListener?.let {
+            networkListener = it
+            pendingListener = null
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -223,7 +229,13 @@ class HostGameService : Service() {
         
         hostName = intent?.getStringExtra(EXTRA_PLAYER_NAME) ?: "Host"
         transport = intent?.getStringExtra(EXTRA_TRANSPORT) ?: Protocol.TRANSPORT_WIFI
-        startHosting()
+        
+        try {
+            startHosting()
+        } catch (e: Exception) {
+            Log.e(TAG, "CRASH: unhandled exception in startHosting", e)
+            networkListener?.onNetworkError("Krasj: ${e::class.simpleName}: ${e.message}")
+        }
         return START_STICKY
     }
 
@@ -255,21 +267,26 @@ class HostGameService : Service() {
     // ══════════════════════════════════════════════════════════════════════════
 
     private fun startWifiHosting() {
-        Log.d(TAG, "Starting Wi-Fi Direct hosting")
-        networkListener?.onHostingStatus("⚙️ Starter WiFi-vertskap...")
-        
-        val wm = getSystemService(Context.WIFI_SERVICE) as WifiManager
-        if (!wm.isWifiEnabled) {
-            networkListener?.onNetworkError("WiFi er ikke aktivert")
-            return
+        try {
+            Log.d(TAG, "Starting Wi-Fi Direct hosting")
+            networkListener?.onHostingStatus("Starter WiFi-vertskap...")
+            
+            val wm = getSystemService(Context.WIFI_SERVICE) as WifiManager
+            if (!wm.isWifiEnabled) {
+                networkListener?.onNetworkError("WiFi er ikke aktivert")
+                return
+            }
+            
+            wifiP2pManager = getSystemService(WIFI_P2P_SERVICE) as WifiP2pManager
+            nsdManager = getSystemService(NSD_SERVICE) as NsdManager
+            wifiChannel = wifiP2pManager?.initialize(this, mainLooper) { /* channel lost */ }
+            networkListener?.onHostingStatus("WiFi initialisert")
+            registerWifiReceiver()
+            createP2pGroup()
+        } catch (e: Exception) {
+            Log.e(TAG, "CRASH: startWifiHosting exception", e)
+            networkListener?.onNetworkError("WiFi-krasj: ${e::class.simpleName}: ${e.message}")
         }
-        
-        wifiP2pManager = getSystemService(WIFI_P2P_SERVICE) as WifiP2pManager
-        nsdManager = getSystemService(NSD_SERVICE) as NsdManager
-        wifiChannel = wifiP2pManager?.initialize(this, mainLooper) { /* channel lost */ }
-        networkListener?.onHostingStatus("📶 WiFi er til/enabled")
-        registerWifiReceiver()
-        createP2pGroup()
     }
 
     private fun registerWifiReceiver() {

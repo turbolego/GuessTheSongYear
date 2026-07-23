@@ -122,18 +122,11 @@ class HostGameFragment : Fragment(), GameNetworkListener {
         binding.textViewHostStatus.text = getString(R.string.hosting_status_wifi_start)
         binding.progressBarHost.visibility = View.VISIBLE
 
-        // Register listener BEFORE starting service so nothing is missed
-        val serviceListener = this
-        HostGameService.instance?.networkListener = serviceListener
+        // Register listener BEFORE starting service — uses race-free pendingListener
+        HostGameService.pendingListener = this
 
-        // Start the service — listener will pick up status updates
+        // Start the service — listener will be picked up in onCreate()
         HostGameService.start(requireContext(), hostName)
-
-        // Re-bind listener to the newly created instance (start may create a new instance)
-        // Post on main looper to give service time to start
-        view?.postDelayed({
-            HostGameService.instance?.networkListener = serviceListener
-        }, 200)
 
         binding.buttonHostWifi.isEnabled = false
         binding.buttonHostBluetooth.isEnabled = false
