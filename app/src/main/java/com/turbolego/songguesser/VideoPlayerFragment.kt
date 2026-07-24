@@ -92,7 +92,16 @@ class SimpleDownloader : Downloader() {
         for ((key, value) in request.headers().entries) {
             conn.setRequestProperty(key, value.joinToString(", "))
         }
-        conn.instanceFollowRedirects = false
+        // Follow redirects to get the actual content
+        conn.instanceFollowRedirects = true
+
+        // Send request body for POST/PUT/PATCH
+        val requestBody = request.dataToSend()
+        if (requestBody != null && requestBody.isNotEmpty()) {
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Length", requestBody.size.toString())
+            conn.outputStream.use { it.write(requestBody) }
+        }
 
         val responseCode = conn.responseCode
         val responseMessage = conn.responseMessage ?: ""
@@ -104,14 +113,23 @@ class SimpleDownloader : Downloader() {
         val body = if (responseCode in 200..299) {
             try {
                 conn.inputStream.bufferedReader().use { it.readText() }
-            } catch (_: Exception) { "" }
+            } catch (ex: Exception) {
+                if (ENABLE_DEBUG_LOGS) Log.w(TAG, "SimpleDownloader: error reading body: ${ex.message}")
+                ""
+            }
         } else {
             try {
                 conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-            } catch (_: Exception) { "" }
+            } catch (ex: Exception) {
+                if (ENABLE_DEBUG_LOGS) Log.w(TAG, "SimpleDownloader: error reading error stream: ${ex.message}")
+                ""
+            }
         }
 
         val latestUrl = conn.url.toString()
+        if (ENABLE_DEBUG_LOGS && responseCode !in 200..299) {
+            Log.w(TAG, "SimpleDownloader: HTTP $responseCode for ${request.url()} → $latestUrl")
+        }
         conn.disconnect()
         return Response(responseCode, responseMessage, headers, body, latestUrl)
     }
@@ -451,12 +469,16 @@ class VideoPlayerFragment : Fragment() {
                 }
 
             } catch (e: Exception) {
-                Log.e(TAG, "Extraction failed for $videoId: ${e.message}")
+                val detail = e.message ?: e.javaClass.simpleName
+                Log.e(TAG, "Extraction failed for $videoId: $detail", e)
                 withContext(Dispatchers.Main) {
                     binding.progressBar.visibility = View.GONE
+                    // Show detailed error for debugging
+                    val msg = "Video: $videoId — ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
+                    Log.e(TAG, msg)
                     Toast.makeText(requireContext(),
                         getString(R.string.error_loading_video), Toast.LENGTH_SHORT).show()
-                    // Try next video
+                    // Try next video after a short delay
                     loadNextVideo()
                 }
             }
