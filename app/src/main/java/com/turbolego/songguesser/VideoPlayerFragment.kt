@@ -702,8 +702,7 @@ class VideoPlayerFragment : Fragment() {
 
         // Set up RecyclerView adapter
         multiplayerAdapter = MultiplayerGuessAdapter(
-            playerNames = playerNames,
-            onAllGuessed = { handleMultiplayerRoundEnd() }
+            playerNames = playerNames
         ).also { adapter ->
             binding.recyclerViewPlayers.adapter = adapter
             binding.recyclerViewPlayers.layoutManager =
@@ -743,14 +742,13 @@ class VideoPlayerFragment : Fragment() {
         currentRound++
         val correctYear = video.year
         val adapter = multiplayerAdapter ?: return
-        val guesses = adapter.getAllGuesses()
-        val allGuessed = guesses.all { it != -1 }
-        if (!allGuessed) return
 
-        // Calculate points for each player
-        for (i in playerNames.indices) {
-            val guess = guesses[i]
-            val name = playerNames[i]
+        // Read each player's current picker value
+        val pickerValues = adapter.getCurrentPickerValues()
+
+        for ((i, pair) in pickerValues.withIndex()) {
+            val name = pair.first
+            val guess = pair.second
             val diff = kotlin.math.abs(guess - correctYear)
             val points = when {
                 diff == 0 -> 100
@@ -769,11 +767,12 @@ class VideoPlayerFragment : Fragment() {
                 points >= 50 -> getString(R.string.correct_close, diff) + " (+$points)"
                 points >= 20 -> getString(R.string.correct_ok, diff) + " (+$points)"
                 points > 0 -> "Av: $diff år (+$points)"
-                else -> getString(R.string.wrong, correctYear)
+                else -> getString(R.string.wrong, correctYear) + " (+$points)"
             }
             adapter.setPlayerResult(i, resultText)
         }
 
+        adapter.revealAnswers()
         binding.buttonNextVideo.visibility = View.VISIBLE
         updateLeaderboardDisplay()
 
@@ -822,9 +821,9 @@ class VideoPlayerFragment : Fragment() {
     }
 
     private fun revealMultiplayerAnswers() {
-        currentVideo?.let { video ->
-            multiplayerAdapter?.revealAnswers(video.year)
-        }
+        if (currentVideo == null) return
+        hasGuessedThisRound = true
+        handleMultiplayerRoundEnd()
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -9,18 +9,18 @@ import com.turbolego.songguesser.databinding.ItemPlayerGuessBinding
 
 /**
  * RecyclerView adapter for multiplayer mode on the same device.
- * Shows each player with their own NumberPicker for guessing the year.
+ * Shows each player with their own NumberPicker — all players
+ * guess simultaneously. The host clicks "Vis svar" to lock in
+ * every player's current picker value.
  */
 class MultiplayerGuessAdapter(
-    private val playerNames: List<String>,
-    private val onAllGuessed: () -> Unit
+    private val playerNames: List<String>
 ) : RecyclerView.Adapter<MultiplayerGuessAdapter.PlayerViewHolder>() {
 
-    private val guesses = IntArray(playerNames.size) { -1 }
+    /** Mirrors each player's current picker value, updated on every bind. */
+    private val currentValues = IntArray(playerNames.size) { 1992 }
     private val results = arrayOfNulls<String>(playerNames.size)
-    private val hasSubmitted = BooleanArray(playerNames.size) { false }
     private var gameOver = false
-    private var correctYear: Int = 0
 
     override fun getItemCount(): Int = playerNames.size
 
@@ -35,22 +35,31 @@ class MultiplayerGuessAdapter(
         holder.bind(position)
     }
 
-    /** Set the correct answer and lock all pickers. */
-    fun revealAnswers(year: Int) {
-        gameOver = true
-        correctYear = year
-        notifyDataSetChanged()
-    }
-
-    /** Check if all players have submitted. */
-    private fun checkAllGuessed() {
-        if (hasSubmitted.all { it }) {
-            onAllGuessed()
+    /** Read every player's current picker value. */
+    fun getCurrentPickerValues(): List<Pair<String, Int>> {
+        return playerNames.indices.map { i ->
+            playerNames[i] to currentValues[i]
         }
     }
 
-    /** Get each player's guessed year (or -1 if not guessed). */
-    fun getAllGuesses(): IntArray = guesses.copyOf()
+    /** Lock all pickers and mark the game round over. */
+    fun revealAnswers() {
+        gameOver = true
+        notifyDataSetChanged()
+    }
+
+    /** Show a result string below a specific player's picker. */
+    fun setPlayerResult(position: Int, resultText: String) {
+        results[position] = resultText
+        notifyItemChanged(position)
+    }
+
+    /** Reset all results and unlock pickers for a new round. */
+    fun resetForNewRound() {
+        results.fill(null)
+        gameOver = false
+        notifyDataSetChanged()
+    }
 
     inner class PlayerViewHolder(private val binding: ItemPlayerGuessBinding) :
         RecyclerView.ViewHolder(binding.root) {
@@ -64,47 +73,25 @@ class MultiplayerGuessAdapter(
             picker.maxValue = 2025
             picker.wrapSelectorWheel = false
 
-            if (guesses[position] != -1) {
-                picker.value = guesses[position]
-            } else {
-                // Start at the middle value (1992) so players scroll up or down
-                picker.value = 1992
+            // Restore previous value or set default
+            picker.value = currentValues[position]
+
+            // Update our mirror array whenever the picker changes
+            picker.setOnValueChangedListener { _, _, newVal ->
+                currentValues[position] = newVal
             }
 
-            // Lock picker after submit or when game is over
-            picker.isEnabled = !hasSubmitted[position] && !gameOver
+            // Lock after Vis svar
+            picker.isEnabled = !gameOver
 
-            if (hasSubmitted[position]) {
-                binding.buttonSubmitGuess.visibility = View.GONE
+            // Show or hide result
+            val resultText = results[position]
+            if (resultText != null) {
                 binding.textViewPlayerResult.visibility = View.VISIBLE
-                binding.textViewPlayerResult.text = results[position] ?: ""
+                binding.textViewPlayerResult.text = resultText
             } else {
-                binding.buttonSubmitGuess.visibility = View.VISIBLE
                 binding.textViewPlayerResult.visibility = View.GONE
             }
-
-            binding.buttonSubmitGuess.setOnClickListener {
-                val year = picker.value
-                guesses[position] = year
-                hasSubmitted[position] = true
-                notifyItemChanged(position)
-                checkAllGuessed()
-            }
         }
-    }
-
-    fun resetForNewRound() {
-        guesses.fill(-1)
-        results.fill(null)
-        hasSubmitted.fill(false)
-        gameOver = false
-        correctYear = 0
-        notifyDataSetChanged()
-    }
-
-    fun setPlayerResult(position: Int, resultText: String) {
-        results[position] = resultText
-        hasSubmitted[position] = true
-        notifyItemChanged(position)
     }
 }
