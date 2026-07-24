@@ -24,9 +24,7 @@
     <string name="guess_hint">Gjett årstallet (1960–2025)</string>
     <string name="edit_guess_hint">År</string>
     <string name="submit_guess">Gjett!</string>
-    <string name="btn_guess">Gjett!</string>
     <string name="reveal_answers">Vis svar</string>
-    <string name="song_release_year">Utgitt i: %d</string>
     <string name="year_unknown">Årstall ikke tilgjengelig</string>
     <string name="hint_decade">Tiår: %d-tallet</string>
     <string name="hint_views">Visninger: %d</string>
