@@ -283,6 +283,8 @@ class VideoPlayerFragment : Fragment() {
         loadVideoJob?.cancel()
         preloadJob?.cancel()
         preloadedCandidates.clear()
+        iframeServer?.shutdown()
+        iframeServer = null
         isPlayerReady = false
         _binding = null
     }
@@ -416,13 +418,15 @@ class VideoPlayerFragment : Fragment() {
                         height: '100%',
                         width: '100%',
                         videoId: '',
+                        host: 'https://www.youtube.com',
                         playerVars: {
                             'playsinline': 1,
                             'controls': 1,
                             'rel': 0,
                             'fs': 1,
                             'modestbranding': 1,
-                            'iv_load_policy': 3
+                            'iv_load_policy': 3,
+                            'origin': window.location.origin
                         },
                         events: {
                             'onReady': onPlayerReady,
@@ -473,6 +477,67 @@ class VideoPlayerFragment : Fragment() {
         webView.evaluateJavascript("javascript:loadVideo('$videoId')", null)
     }
 
+    // ── Embedded HTTP server for serving iframe HTML ──────────────────────
+
+    /** Local HTTP server that serves the iframe HTML page.
+     * YouTube requires the embedding page to have a real HTTP origin
+     * that matches the 'origin' playerVar. loadDataWithBaseURL creates a
+     * data: or about:blank origin which YouTube blocks (error 150/152).
+     *
+     * This tiny server runs on 127.0.0.1:{iframeServerPort} and serves
+     * exactly one page: the iframe HTML. The WebView loads it via
+     * http://127.0.0.1:{port}/ — YouTube sees a real origin and allows
+     * the embed.
+     */
+    private var iframeServer: FiwareHttpServer? = null
+    private var iframeServerPort: Int = 0
+
+    /** Minimal embedded HTTP server serving one HTML page on localhost. */
+    private class FiwareHttpServer(private val html: String) : Thread() {
+        @Volatile var running = true
+        var port: Int = 0
+        private var serverSocket: java.net.ServerSocket? = null
+
+        override fun run() {
+            try {
+                serverSocket = java.net.ServerSocket(0)  // OS-assigned port
+                port = serverSocket!!.localPort
+                if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Iframe server on http://127.0.0.1:$port")
+
+                while (running) {
+                    val client = try { serverSocket?.accept() } catch (_: Exception) { null } ?: continue
+                    try {
+                        val reader = client.getInputStream().bufferedReader()
+                        // Read request line (ignore headers)
+                        reader.readLine()
+                        // Drain remaining headers
+                        var line = reader.readLine()
+                        while (!line.isNullOrEmpty() && line != "\r" && line != "") {
+                            line = reader.readLine()
+                        }
+
+                        val response = buildString {
+                            append("HTTP/1.1 200 OK\r\n")
+                            append("Content-Type: text/html; charset=UTF-8\r\n")
+                            append("Content-Length: ${html.length}\r\n")
+                            append("Connection: close\r\n")
+                            append("Access-Control-Allow-Origin: *\r\n")
+                            append("\r\n")
+                            append(html)
+                        }
+                        client.getOutputStream().write(response.toByteArray(Charsets.UTF_8))
+                        client.close()
+                    } catch (_: Exception) {}
+                }
+            } catch (_: Exception) {}
+        }
+
+        fun shutdown() {
+            running = false
+            try { serverSocket?.close() } catch (_: Exception) {}
+        }
+    }
+
     private fun cueVideoInWebView(videoId: String) {
         val webView = binding.youtubePlayerView as WebView
         webView.evaluateJavascript("javascript:cueVideo('$videoId')", null)
@@ -484,27 +549,36 @@ class VideoPlayerFragment : Fragment() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            mediaPlaybackRequiresUserGesture = false  // allow autoplay after JS load
+            mediaPlaybackRequiresUserGesture = false
+            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         }
-        webView.webChromeClient = WebChromeClient()   // enables media controls, fullscreen JS
+        webView.webChromeClient = WebChromeClient()
         webView.webViewClient = WebViewClient()
 
         // Bridge — exposed as 'Android' in JavaScript
         webView.addJavascriptInterface(YouTubeBridge(), "Android")
 
-        // Load the iframe HTML
+        // Start embedded HTTP server serving the iframe HTML.
+        // YouTube requires a real origin (http://127.0.0.1) matching the
+        // 'origin' playerVar. This avoids error 150/152.
         val html = buildIframeHtml()
-        webView.loadDataWithBaseURL(
-            "https://www.youtube.com",
-            html,
-            "text/html",
-            "UTF-8",
-            null
-        )
+        iframeServer = FiwareHttpServer(html)
+        iframeServer!!.start()
+
+        // Wait briefly for the server to bind
+        var waited = 0
+        while (iframeServer!!.port == 0 && waited < 500) {
+            Thread.sleep(10)
+            waited += 10
+        }
+        iframeServerPort = iframeServer!!.port
+
+        // Load the iframe HTML from localhost — YouTube sees real origin
+        webView.loadUrl("http://127.0.0.1:$iframeServerPort/")
 
         if (ENABLE_DEBUG_LOGS) {
             @Suppress("DEPRECATION")
-            WebView.setWebContentsDebuggingEnabled(true) // Chrome DevTools for WebView
+            WebView.setWebContentsDebuggingEnabled(true)
         }
     }
 
