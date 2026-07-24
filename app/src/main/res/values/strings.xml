@@ -41,6 +41,7 @@
     <string name="correct_ok">Feil med %d år. Du fikk noen poeng.</string>
     <string name="wrong">Feil! Riktig år var %d. 😢</string>
     <string name="score_earned">+%d poeng</string>
+    <string name="round_label">Runde %d/%d</string>
 
     <!-- Local multiplayer -->
     <string name="game_session">Flertame</string>

@@ -177,6 +177,11 @@ class VideoPlayerFragment : Fragment() {
     private var isMultiplayer = false
     private var isNetworkClient = false
     private var pendingPlayerId: String? = null
+    private var playerNames: List<String> = emptyList()
+    private var multiplayerAdapter: MultiplayerGuessAdapter? = null
+    private val multiplayerScores = mutableMapOf<String, Int>()
+    private var currentRound = 0
+    private val totalRounds = 10
 
     // ═══════════════════════════════════════════════════════════════════════════
     // INIT
@@ -248,6 +253,15 @@ class VideoPlayerFragment : Fragment() {
         // Load video pool
         loadVideoPool()
         setupListeners()
+
+        // Read arguments
+        arguments?.let { args ->
+            val names = args.getStringArrayList("playerNames")
+            if (!names.isNullOrEmpty()) {
+                playerNames = names
+                isMultiplayer = true
+            }
+        }
 
         if (isMultiplayer) setupMultiplayerUI()
         if (!isMultiplayer) updateScoreDisplay()
@@ -375,6 +389,9 @@ class VideoPlayerFragment : Fragment() {
         // Stop current playback
         exoPlayer?.stop()
         exoPlayer?.clearMediaItems()
+
+        // Reset multiplayer adapter for new round
+        multiplayerAdapter?.resetForNewRound()
 
         if (isNetworkClient) {
             // Client mode: host sends the info
@@ -509,8 +526,14 @@ class VideoPlayerFragment : Fragment() {
 
     private fun beginGuessTimer() {
         guessJob?.cancel()
-        binding.editTextGuess.isEnabled = true
         binding.textViewCountdown.visibility = View.GONE
+        if (isMultiplayer) {
+            // In multiplayer, each player uses their own NumberPicker via the adapter
+            binding.editTextGuess.visibility = View.GONE
+            binding.buttonGuess.visibility = View.GONE
+            return
+        }
+        binding.editTextGuess.isEnabled = true
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -667,26 +690,140 @@ class VideoPlayerFragment : Fragment() {
         binding.textViewLeaderboard.visibility = View.VISIBLE
         binding.recyclerViewPlayers.visibility = View.VISIBLE
         binding.buttonRevealAnswers.visibility = View.VISIBLE
+        // Hide single-player guess controls
+        binding.editTextGuess.visibility = View.GONE
+        binding.buttonGuess.visibility = View.GONE
+        binding.textViewFeedback.visibility = View.GONE
+
+        // Initialize per-player scores
+        for (name in playerNames) {
+            multiplayerScores[name] = 0
+        }
+
+        // Set up RecyclerView adapter
+        multiplayerAdapter = MultiplayerGuessAdapter(
+            playerNames = playerNames,
+            onAllGuessed = { handleMultiplayerRoundEnd() }
+        ).also { adapter ->
+            binding.recyclerViewPlayers.adapter = adapter
+            binding.recyclerViewPlayers.layoutManager =
+                androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+        }
+
+        updateLeaderboardDisplay()
     }
 
     fun setMultiplayer(isMp: Boolean, players: List<String>? = null) {
         isMultiplayer = isMp
         if (!isAdded) return
         if (isMp) {
+            if (players != null) {
+                playerNames = players
+                multiplayerScores.clear()
+                for (name in players) multiplayerScores[name] = 0
+            }
             setupMultiplayerUI()
         } else {
             isMultiplayer = false
             binding.textViewScore.visibility = View.VISIBLE
             binding.textViewLeaderboard.visibility = View.GONE
             binding.recyclerViewPlayers.visibility = View.GONE
+            binding.recyclerViewPlayers.adapter = null
             binding.buttonRevealAnswers.visibility = View.GONE
+            binding.editTextGuess.visibility = View.VISIBLE
+            binding.buttonGuess.visibility = View.VISIBLE
+            binding.textViewFeedback.visibility = View.VISIBLE
+            multiplayerAdapter = null
+            updateScoreDisplay()
         }
+    }
+
+    private fun handleMultiplayerRoundEnd() {
+        val video = currentVideo ?: return
+        currentRound++
+        val correctYear = video.year
+        val adapter = multiplayerAdapter ?: return
+        val guesses = adapter.getAllGuesses()
+        val allGuessed = guesses.all { it != -1 }
+        if (!allGuessed) return
+
+        // Calculate points for each player
+        for (i in playerNames.indices) {
+            val guess = guesses[i]
+            val name = playerNames[i]
+            val diff = kotlin.math.abs(guess - correctYear)
+            val points = when {
+                diff == 0 -> 100
+                diff <= 1 -> 75
+                diff <= 2 -> 50
+                diff <= 3 -> 30
+                diff <= 5 -> 20
+                diff <= 10 -> 10
+                else -> 0
+            }
+            multiplayerScores[name] = (multiplayerScores[name] ?: 0) + points
+
+            val resultText = when {
+                points >= 100 -> getString(R.string.correct_exact) + " (+$points)"
+                points >= 75 -> getString(R.string.correct_very_close, diff) + " (+$points)"
+                points >= 50 -> getString(R.string.correct_close, diff) + " (+$points)"
+                points >= 20 -> getString(R.string.correct_ok, diff) + " (+$points)"
+                points > 0 -> "Av: $diff år (+$points)"
+                else -> getString(R.string.wrong, correctYear)
+            }
+            adapter.setPlayerResult(i, resultText)
+        }
+
+        binding.buttonNextVideo.visibility = View.VISIBLE
+        updateLeaderboardDisplay()
+
+        if (currentRound >= totalRounds) {
+            showFinalResults()
+        }
+    }
+
+    private fun updateLeaderboardDisplay() {
+        val sorted = multiplayerScores.entries.sortedByDescending { it.value }
+        val lines = sorted.withIndex().joinToString("  ") { (i, entry) ->
+            "${i + 1}.${entry.key}: ${entry.value}p"
+        }
+        binding.textViewLeaderboard.text = "${getString(R.string.round_label, currentRound + 1, totalRounds)}  |  $lines"
+    }
+
+    private fun showFinalResults() {
+        val sorted = multiplayerScores.entries.sortedByDescending { it.value }
+        val winner = sorted.firstOrNull()
+        val msg = buildString {
+            appendLine("🏆 Spillet er ferdig!")
+            appendLine()
+            for ((i, entry) in sorted.withIndex()) {
+                val medal = when (i) {
+                    0 -> "🥇"
+                    1 -> "🥈"
+                    2 -> "🥉"
+                    else -> "  "
+                }
+                appendLine("$medal ${entry.key}: ${entry.value} poeng")
+            }
+            if (winner != null) {
+                appendLine()
+                append("Vinner: ${winner.key} 🎉")
+            }
+        }
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("Resultater")
+            .setMessage(msg)
+            .setPositiveButton("Spill igjen") { _, _ -> resetGame() }
+            .setNegativeButton("Avslutt") { _, _ ->
+                requireActivity().supportFragmentManager.popBackStack()
+            }
+            .setCancelable(false)
+            .show()
     }
 
     private fun revealMultiplayerAnswers() {
         currentVideo?.let { video ->
-            val answer = video.year.toString()
-            Toast.makeText(requireContext(), "Riktig år: $answer", Toast.LENGTH_LONG).show()
+            multiplayerAdapter?.revealAnswers(video.year)
         }
     }
 
