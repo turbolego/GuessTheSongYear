@@ -382,8 +382,8 @@ class VideoPlayerFragment : Fragment() {
         binding.buttonNextVideo.visibility = View.GONE
         binding.textViewHint.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
-        binding.textViewSongTitle.text = getString(R.string.loading_video)
-        binding.textViewArtist.text = ""
+                binding.textViewSongTitle.text = "???"
+                binding.textViewArtist.text = "???"
         binding.textViewCountdown.visibility = View.GONE
 
         // Stop current playback
@@ -479,8 +479,10 @@ class VideoPlayerFragment : Fragment() {
                         )
                     }
                     currentVideoMetadata = metadata
-                    binding.textViewSongTitle.text = metadata?.title ?: "Music Video"
-                    binding.textViewArtist.text = metadata?.authorName ?: ""
+
+                    // Hide title + artist until Vis svar
+                    binding.textViewSongTitle.text = "???"
+                    binding.textViewArtist.text = "???"
 
                     // Prepare ExoPlayer with the stream URL
                     val mediaItem = MediaItem.fromUri(streamUrl)
@@ -613,6 +615,14 @@ class VideoPlayerFragment : Fragment() {
         binding.editTextGuess.isEnabled = false
         binding.buttonGuess.isEnabled = false
         binding.buttonNextVideo.visibility = View.VISIBLE
+        revealSongInfo(correctYear)
+    }
+
+    /** Show hidden song title and artist, appending the release year. */
+    private fun revealSongInfo(year: Int) {
+        val meta = currentVideoMetadata
+        binding.textViewSongTitle.text = meta?.title ?: "Music Video"
+        binding.textViewArtist.text = (meta?.authorName ?: "Ukjent") + "  ·  $year"
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -775,6 +785,7 @@ class VideoPlayerFragment : Fragment() {
         adapter.revealAnswers()
         binding.buttonNextVideo.visibility = View.VISIBLE
         updateLeaderboardDisplay()
+        revealSongInfo(correctYear)
 
         if (currentRound >= totalRounds) {
             showFinalResults()
