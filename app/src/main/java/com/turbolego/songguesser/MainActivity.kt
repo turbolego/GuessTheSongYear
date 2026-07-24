@@ -110,6 +110,10 @@ class MainActivity : AppCompatActivity() {
                 showAbout()
                 true
             }
+            R.id.action_debug -> {
+                navigateToDebug()
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
     }
@@ -173,6 +177,16 @@ class MainActivity : AppCompatActivity() {
             .addToBackStack("join_game")
             .commit()
         supportActionBar?.title = "Bli med i spill"
+    }
+
+    private fun navigateToDebug() {
+        val frag = DebugFragment()
+        currentFragment = frag
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack("debug")
+            .commit()
+        supportActionBar?.title = "🔧 Debug"
     }
 
     private fun confirmResetScore() {

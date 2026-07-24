@@ -51,4 +51,9 @@
         android:title="@string/menu_about"
         app:showAsAction="never" />
 
+    <item
+        android:id="@+id/action_debug"
+        android:title="@string/menu_debug"
+        app:showAsAction="never" />
+
 </menu>

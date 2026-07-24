@@ -5,6 +5,7 @@
     <!-- Menu -->
     <string name="menu_difficulty">Vanskelighetsgrad</string>
     <string name="menu_about">Om</string>
+    <string name="menu_debug">🔧 Debug</string>
     <string name="menu_reset_score">Nullstill poeng</string>
     <string name="menu_clear_duplicates">Nullstill duplikat-teller</string>
     <string name="menu_local_multiplayer">Lokal flerspiller (samme enhet)</string>
