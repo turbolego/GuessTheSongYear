@@ -11,6 +11,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -64,6 +65,9 @@ kotlin {
 }
 
 dependencies {
+    // Core library desugaring (required by NewPipe Extractor)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -76,6 +80,11 @@ dependencies {
     // QR Code generation + scanning
     implementation(libs.zxing.core)
     implementation(libs.zxing.android.embedded)
+
+    // YouTube stream extraction + native playback
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
+    implementation(libs.newpipe.extractor)
 
     // WiFi P2P for local multiplayer (using built-in Android APIs)
 

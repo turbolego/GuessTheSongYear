@@ -12,6 +12,8 @@ kotlinxCoroutinesAndroid = "1.11.0"
 kotlinxCoroutinesPlayServices = "1.11.0"
 zxingCore = "3.5.3"
 zxingEmbedded = "4.3.0"
+media3Exoplayer = "1.9.0"
+newpipeExtractor = "v0.26.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -29,6 +31,9 @@ androidx-test-core = { group = "androidx.test", name = "core", version = "1.7.0"
 mockito-core = { group = "org.mockito", name = "mockito-core", version = "5.23.0" }
 mockito-android = { group = "org.mockito", name = "mockito-android", version = "5.23.0" }
 mockito-inline = { group = "org.mockito", name = "mockito-inline", version = "5.2.0" }
+media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3Exoplayer" }
+media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3Exoplayer" }
+newpipe-extractor = { group = "com.github.teamnewpipe", name = "NewPipeExtractor", version.ref = "newpipeExtractor" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

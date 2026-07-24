@@ -13,4 +13,64 @@
     </style>
 
     <style name="Theme.GuessTheSongYear" parent="Base.Theme.GuessTheSongYear" />
+
+    <!-- Song title — center, large, amber/white -->
+    <style name="SongTitle" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:textColor">@color/body_text</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:lineSpacingExtra">4dp</item>
+    </style>
+
+    <style name="SongTitleLarge" parent="TextAppearance.Material3.HeadlineLarge">
+        <item name="android:textColor">@color/body_text</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Body text — regular, muted -->
+    <style name="BodyText" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/muted_text</item>
+    </style>
+
+    <style name="BodyTextBold" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textColor">@color/body_text</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Countdown — huge amber -->
+    <style name="CountdownText" parent="TextAppearance.Material3.DisplayLarge">
+        <item name="android:textColor">@color/amber_accent</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Feedback text — dynamic color via code -->
+    <style name="FeedbackText" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textStyle">bold</item>
+        <item name="android:gravity">center</item>
+        <item name="android:lineSpacingExtra">2dp</item>
+    </style>
+
+    <!-- Guess input — dark box, centered -->
+    <style name="GuessInput" parent="Widget.Material3.TextInputEditText.OutlinedBox">
+        <item name="android:textColor">@color/body_text</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@color/surface</item>
+        <item name="android:inputType">number</item>
+    </style>
+
+    <!-- Primary button — amber fill -->
+    <style name="PrimaryButton" parent="Widget.Material3.Button">
+        <item name="android:textColor">@color/ink</item>
+    </style>
+
+    <!-- Secondary button — outlined -->
+    <style name="SecondaryButton" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:textColor">@color/amber_accent</item>
+    </style>
+
+    <!-- Muted / hint text -->
+    <style name="MutedText" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textColor">@color/muted_text</item>
+    </style>
 </resources>

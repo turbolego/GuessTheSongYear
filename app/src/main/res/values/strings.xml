@@ -21,7 +21,10 @@
     <string name="next_video">Neste video</string>
     <string name="next_player">Neste spiller</string>
     <string name="guess_hint">Gjett årstallet (1960–2025)</string>
+    <string name="edit_guess_hint">År</string>
+    <string name="submit_guess">Gjett!</string>
     <string name="btn_guess">Gjett!</string>
+    <string name="reveal_answers">Vis svar</string>
     <string name="song_release_year">Utgitt i: %d</string>
     <string name="year_unknown">Årstall ikke tilgjengelig</string>
     <string name="hint_decade">Tiår: %d-tallet</string>
@@ -29,6 +32,7 @@
 
     <!-- Scoring -->
     <string name="score_label">Poeng: %d</string>
+    <string name="score_label_zero">Poeng: 0</string>
     <string name="streak_label">Streak: %d</string>
     <string name="correct_exact">Perfekt! Akkurat riktig år! 🎯</string>
     <string name="correct_very_close">Veldig nære! Feil med %d år. 🔥</string>
@@ -73,6 +77,9 @@
     <!-- Watch on YouTube -->
     <string name="watch_on_youtube">Åpne i YouTube</string>
     <string name="video_visited">Så du videoen på YouTube</string>
+
+    <!-- NewPipe + ExoPlayer -->
+    <string name="loading_video">Laster video…</string>
 
     <!-- Overlay -->
     <string name="overlay_audio_only">🎵 Bare lyd</string>

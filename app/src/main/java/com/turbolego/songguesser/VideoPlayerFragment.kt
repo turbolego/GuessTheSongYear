@@ -1,8 +1,5 @@
 package com.turbolego.songguesser
 
-import android.content.Intent
-import android.graphics.BitmapFactory
-import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -11,19 +8,29 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
-import android.widget.NumberPicker
 import android.widget.Toast
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import com.turbolego.songguesser.databinding.FragmentVideoPlayerBinding
-import com.turbolego.songguesser.databinding.ItemPlayerGuessBinding
 import kotlinx.coroutines.*
-import kotlin.time.Duration.Companion.seconds
+import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.StreamingService
+import org.schabi.newpipe.extractor.downloader.Downloader
+import org.schabi.newpipe.extractor.downloader.Request
+import org.schabi.newpipe.extractor.downloader.Response
+import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
+import org.schabi.newpipe.extractor.stream.StreamInfo
+import java.io.BufferedReader
+import java.io.IOException
+import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.time.Duration.Companion.seconds
 
 private const val TAG = "VideoPlayerFragment"
 private const val YEAR_MIN = 1960
@@ -32,13 +39,6 @@ private const val ENABLE_DEBUG_LOGS = false
 
 data class KnownVideo(val id: String, val year: Int)
 data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
-
-/** Video metadata fetched from YouTube oEmbed API (no key required). */
-data class VideoMetadata(
-    val title: String,
-    val authorName: String,
-    val thumbnailUrl: String
-)
 
 private val fallbackVideoList = listOf(
     KnownVideo("dQw4w9WgXcQ", 1987),     // Rick Astley — Never Gonna Give You Up
@@ -51,7 +51,7 @@ private val fallbackVideoList = listOf(
     KnownVideo("2Vv-BfVoq4g", 2017),     // Ed Sheeran — Perfect
     KnownVideo("fLexgOxsZu0", 2010),     // Bruno Mars — The Lazy Song
     KnownVideo("kJQP7kiw5Fk", 2017),     // Luis Fonsi — Despacito
-    KnownVideo("YlUKcNNmywk", 1999),     // Red Hot Chili Peppers — Californication
+    KnownVideo("YlUKcNNmywk", 1999),     // RHCP — Californication
     KnownVideo("QcIy9NiNbmo", 2014),     // Taylor Swift — Bad Blood
     KnownVideo("fRh_vgS2dFE", 2015),     // Justin Bieber — Sorry
     KnownVideo("JGwWNGJdvx8", 2017),     // Ed Sheeran — Shape of You
@@ -73,10 +73,49 @@ private val fallbackVideoList = listOf(
     KnownVideo("SMs0GnYze34", 2016),     // DJ Snake — Let Me Love You
     KnownVideo("NmCFY1oYDeM", 2016),     // John Legend — Love Me Now
     KnownVideo("bESGLojNYSo", 2008),     // Lady Gaga — Poker Face
-    KnownVideo("Pkh8UtuejGw", 2019),     // Shawn Mendes & Camila Cabello — Señorita
+    KnownVideo("Pkh8UtuejGw", 2019),     // Shawn Mendes — Señorita
     KnownVideo("Rt0spqQtMKg", 2006),     // SNL — D*** in a Box
     KnownVideo("YykjpeuMNEk", 2015),     // Coldplay — Hymn For The Weekend
 )
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIMPLE HTTP DOWNLOADER FOR NEWPIPE EXTRACTOR
+// ═══════════════════════════════════════════════════════════════════════════
+
+class SimpleDownloader : Downloader() {
+    override fun execute(request: Request): Response {
+        val url = URL(request.url())
+        val conn = url.openConnection() as HttpURLConnection
+        conn.connectTimeout = 30000
+        conn.readTimeout = 30000
+        conn.requestMethod = request.httpMethod()
+        for ((key, value) in request.headers().entries) {
+            conn.setRequestProperty(key, value.joinToString(", "))
+        }
+        conn.instanceFollowRedirects = false
+
+        val responseCode = conn.responseCode
+        val responseMessage = conn.responseMessage ?: ""
+        val headers = mutableMapOf<String, MutableList<String>>()
+        conn.headerFields?.forEach { (key, values) ->
+            if (key != null) headers[key] = values.toMutableList()
+        }
+
+        val body = if (responseCode in 200..299) {
+            try {
+                conn.inputStream.bufferedReader().use { it.readText() }
+            } catch (_: Exception) { "" }
+        } else {
+            try {
+                conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            } catch (_: Exception) { "" }
+        }
+
+        val latestUrl = conn.url.toString()
+        conn.disconnect()
+        return Response(responseCode, responseMessage, headers, body, latestUrl)
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FRAGMENT
@@ -92,7 +131,6 @@ class VideoPlayerFragment : Fragment() {
     val playedVideoIds: MutableSet<String> = mutableSetOf()
     var duplicateSkipCount = 0
     private var currentVideo: ApiVideo? = null
-    private var currentVideoMetadata: VideoMetadata? = null
 
     // ── Game state ─────────────────────────────────────────────────────────
     private var score = 0
@@ -100,14 +138,37 @@ class VideoPlayerFragment : Fragment() {
     private var hasGuessedThisRound = false
     private var currentDifficulty: Difficulty = Difficulty.MEDIUM
 
-    // ── Timers (coroutine-based) ────────────────────────────────────────────
+    // ── Timers ─────────────────────────────────────────────────────────────
     private var countdownJob: Job? = null
     private var guessJob: Job? = null
 
-    // ── Multiplayer ─────────────────────────────────────────────────────────
+    // ── ExoPlayer ──────────────────────────────────────────────────────────
+    private var exoPlayer: ExoPlayer? = null
+    private var playerStarted = false
+
+    // ── NewPipe extractor state ────────────────────────────────────────────
+    private var youtubeService: StreamingService? = null
+    private var streamExtractJob: Job? = null
+
+    // ── Multiplayer ────────────────────────────────────────────────────────
     private var isMultiplayer = false
     private var isNetworkClient = false
     private var pendingPlayerId: String? = null
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    init {
+        // Initialize NewPipe Extractor once
+        try {
+            NewPipe.init(SimpleDownloader())
+            youtubeService = NewPipe.getService("YouTube")
+            if (ENABLE_DEBUG_LOGS) Log.d(TAG, "NewPipe initialized ✓")
+        } catch (e: Exception) {
+            Log.e(TAG, "NewPipe init failed: ${e.message}")
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // LIFECYCLE
@@ -123,24 +184,69 @@ class VideoPlayerFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Load video pool (synchronous — pre-verified list)
+        // Init ExoPlayer
+        exoPlayer = ExoPlayer.Builder(requireContext()).build().also { player ->
+            binding.playerView.player = player
+            player.addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    when (state) {
+                        Player.STATE_READY -> {
+                            if (ENABLE_DEBUG_LOGS) Log.d(TAG, "ExoPlayer READY")
+                            binding.progressBar.visibility = View.GONE
+                            if (!playerStarted) {
+                                playerStarted = true
+                                player.play()
+                                // Start game countdown once video begins playing
+                                beginCountdown()
+                            }
+                        }
+                        Player.STATE_ENDED -> {
+                            if (ENABLE_DEBUG_LOGS) Log.d(TAG, "ExoPlayer ENDED")
+                        }
+                        Player.STATE_BUFFERING -> {
+                            binding.progressBar.visibility = View.VISIBLE
+                        }
+                    }
+                }
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (isPlaying && ENABLE_DEBUG_LOGS) {
+                        Log.d(TAG, "Video is now playing")
+                    }
+                }
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    Log.e(TAG, "ExoPlayer error: ${error.localizedMessage}")
+                    binding.progressBar.visibility = View.GONE
+                    Toast.makeText(requireContext(),
+                        R.string.error_loading_video, Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
+
+        // Load video pool
         loadVideoPool()
         setupListeners()
 
         if (isMultiplayer) setupMultiplayerUI()
-
         if (!isMultiplayer) updateScoreDisplay()
         if (currentVideoList.isNotEmpty()) loadNextVideo()
     }
 
     override fun onResume() {
         super.onResume()
-        // User may have returned from YouTube app — no special handling needed
+        exoPlayer?.play()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        exoPlayer?.pause()
     }
 
     override fun onDestroyView() {
         countdownJob?.cancel()
         guessJob?.cancel()
+        streamExtractJob?.cancel()
+        exoPlayer?.release()
+        exoPlayer = null
         _binding = null
         super.onDestroyView()
     }
@@ -158,39 +264,23 @@ class VideoPlayerFragment : Fragment() {
     }
 
     private fun pickCandidate(difficulty: Difficulty): ApiVideo? {
-        // Filter videos that haven't been played yet this session
         val unscored = currentVideoList.filter { it.id !in playedVideoIds }
         if (unscored.isEmpty()) return null
 
-        val now = System.currentTimeMillis()
-
         return when (difficulty) {
-            Difficulty.EASY -> {
-                // Pick oldest available video
-                unscored.minByOrNull { it.year }
-            }
-            Difficulty.HARD -> {
-                // Pick newest available video
-                unscored.maxByOrNull { it.year }
-            }
+            Difficulty.EASY -> unscored.minByOrNull { it.year }
+            Difficulty.HARD -> unscored.maxByOrNull { it.year }
             Difficulty.MEDIUM -> {
-                // Weight towards videos with years further from current year
-                // to keep a balance
                 unscored.maxByOrNull { kotlin.math.abs(it.year - 2000) }
             }
         } ?: unscored.firstOrNull()
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // UI LISTENERS
+    // UI SETUP
     // ═══════════════════════════════════════════════════════════════════════════
 
     private fun setupListeners() {
-        // "Watch on YouTube" button → opens YouTube app/browser
-        binding.buttonWatchOnYouTube.setOnClickListener {
-            currentVideo?.let { video -> openInYoutubeApp(video.id) }
-        }
-
         // Guess input
         binding.editTextGuess.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -213,12 +303,12 @@ class VideoPlayerFragment : Fragment() {
         // Reveal answers (multiplayer)
         binding.buttonRevealAnswers.setOnClickListener { revealMultiplayerAnswers() }
 
-        // Toggle video overlay (audio-only mode)
-        // Not needed with Intent-based approach — overlay is cosmetic only
+        // Toggle overlay
+        binding.buttonToggleVideo.setOnClickListener { toggleOverlay() }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // LOAD & DISPLAY VIDEO
+    // LOAD & PLAY VIDEO VIA NEWPIPE + EXOPLAYER
     // ═══════════════════════════════════════════════════════════════════════════
 
     private fun loadNextVideo() {
@@ -230,9 +320,9 @@ class VideoPlayerFragment : Fragment() {
 
         countdownJob?.cancel()
         guessJob?.cancel()
+        streamExtractJob?.cancel()
 
         val candidate = pickCandidate(currentDifficulty) ?: run {
-            // All played — reset
             playedVideoIds.clear()
             duplicateSkipCount = 0
             Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
@@ -243,6 +333,7 @@ class VideoPlayerFragment : Fragment() {
         currentVideo = candidate
         playedVideoIds.add(candidate.id)
         hasGuessedThisRound = false
+        playerStarted = false
 
         // Reset UI
         binding.editTextGuess.text.clear()
@@ -250,126 +341,124 @@ class VideoPlayerFragment : Fragment() {
         binding.buttonGuess.isEnabled = false
         binding.textViewFeedback.visibility = View.GONE
         binding.textViewSongYear.visibility = View.GONE
+        binding.textViewSongYear.text = ""
         binding.buttonNextVideo.visibility = View.GONE
         binding.textViewHint.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
-        binding.buttonWatchOnYouTube.isEnabled = false
+        binding.textViewSongTitle.text = getString(R.string.loading_video)
+        binding.textViewArtist.text = ""
+        binding.textViewCountdown.visibility = View.GONE
+
+        // Stop current playback
+        exoPlayer?.stop()
+        exoPlayer?.clearMediaItems()
 
         if (isNetworkClient) {
-            // Client mode: host sends the video info, we just display
+            // Client mode: host sends the info
             binding.textViewSongTitle.text = candidate.title
             binding.textViewArtist.text = getString(R.string.year_unknown)
             binding.progressBar.visibility = View.GONE
             beginGuessTimer()
         } else {
-            // Fetch metadata from oEmbed (async)
-            binding.textViewSongTitle.text = candidate.title
-            lifecycleScope.launch {
-                val metadata = fetchMetadata(candidate.id)
-                currentVideoMetadata = metadata
-                if (metadata != null) {
-                    binding.textViewSongTitle.text = metadata.title
-                    binding.textViewArtist.text = metadata.authorName
-                    loadThumbnail(metadata.thumbnailUrl)
-                }
-                binding.progressBar.visibility = View.GONE
-                beginCountdown(candidate.id)
+            // Extract stream URL and play it
+            streamExtractJob = lifecycleScope.launch {
+                extractAndPlay(candidate.id)
             }
         }
     }
-
-    // ── oEmbed Metadata Fetching ──────────────────────────────────────────
 
     /**
-     * Fetch video metadata from YouTube's public oEmbed API.
-     * No API key required — returns JSON with title, author_name, thumbnail_url.
+     * Extract YouTube stream URL via NewPipe Extractor, then play in ExoPlayer.
      */
-    private suspend fun fetchMetadata(videoId: String): VideoMetadata? {
-        return withContext(Dispatchers.IO) {
+    private suspend fun extractAndPlay(videoId: String) {
+        withContext(Dispatchers.IO) {
             try {
-                val url = URL("https://www.youtube.com/oembed?url=" +
-                    "https://www.youtube.com/watch?v=$videoId&format=json")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.connectTimeout = 10000
-                conn.readTimeout = 5000
-                conn.setRequestProperty("User-Agent",
-                    "GuessTheSongYear/1.0 (Android)")
-                val json = conn.inputStream.bufferedReader().use { it.readText() }
+                val service = youtubeService
+                    ?: throw IllegalStateException("NewPipe not initialized")
 
-                // Simple JSON parsing — no external library needed
-                val title = extractJsonString(json, "title") ?: "Music Video"
-                val authorName = extractJsonString(json, "author_name") ?: "Unknown Artist"
-                val thumbUrl = extractJsonString(json, "thumbnail_url")
-                    ?: "https://img.youtube.com/vi/$videoId/mqdefault.jpg"
+                val url = "https://www.youtube.com/watch?v=$videoId"
+                val streamInfo = StreamInfo.getInfo(service, url)
 
-                VideoMetadata(title, authorName, thumbUrl)
+                // Extract video + audio streams
+                val videoStreams = streamInfo.videoStreams
+                val audioStreams = streamInfo.audioStreams
+                val videoOnlyStreams = streamInfo.videoOnlyStreams
+
+                if (ENABLE_DEBUG_LOGS) {
+                    Log.d(TAG, "Streams for $videoId:" +
+                            " video=${videoStreams.size}, audio=${audioStreams.size}," +
+                            " videoOnly=${videoOnlyStreams.size}")
+                }
+
+                // Find the best combined video+audio stream (progressive)
+                var streamUrl: String? = null
+
+                // Try progressive streams (combined audio+video) first
+                if (videoStreams.isNotEmpty()) {
+                    // Pick the highest quality progressive stream by resolution string (e.g. "720p")
+                    val best = videoStreams
+                        .filter { it.isVideoOnly == false }
+                        .maxByOrNull { parseResolution(it.resolution) }
+                    streamUrl = best?.url
+                    if (ENABLE_DEBUG_LOGS) {
+                        Log.d(TAG, "Progressive stream: ${best?.resolution}")
+                    }
+                }
+
+                // Fall back to video-only stream
+                if (streamUrl == null && videoOnlyStreams.isNotEmpty()) {
+                    val bestVideo = videoOnlyStreams
+                        .maxByOrNull { parseResolution(it.resolution) }
+                    streamUrl = bestVideo?.url
+
+                    if (ENABLE_DEBUG_LOGS) {
+                        Log.d(TAG, "Video-only: ${bestVideo?.resolution}")
+                    }
+                }
+
+                // Last resort: any video or audio URL
+                if (streamUrl == null && audioStreams.isNotEmpty()) {
+                    streamUrl = audioStreams.first().url
+                    if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Falling back to audio-only stream")
+                }
+
+                if (streamUrl == null) {
+                    throw IOException("No playable streams found for video $videoId")
+                }
+
+                if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Playing URL: ${streamUrl.take(80)}...")
+
+                // Update UI on main thread
+                withContext(Dispatchers.Main) {
+                    val metadata = streamInfo.name?.let { name ->
+                        VideoMetadata(
+                            name,
+                            streamInfo.uploaderName ?: "Unknown",
+                            streamInfo.thumbnails?.firstOrNull()?.url
+                                ?: "https://img.youtube.com/vi/$videoId/mqdefault.jpg"
+                        )
+                    }
+                    currentVideoMetadata = metadata
+                    binding.textViewSongTitle.text = metadata?.title ?: "Music Video"
+                    binding.textViewArtist.text = metadata?.authorName ?: ""
+
+                    // Prepare ExoPlayer with the stream URL
+                    val mediaItem = MediaItem.fromUri(streamUrl)
+                    exoPlayer?.setMediaItem(mediaItem)
+                    exoPlayer?.prepare()
+
+                    binding.progressBar.visibility = View.GONE
+                }
+
             } catch (e: Exception) {
-                if (ENABLE_DEBUG_LOGS) Log.e(TAG, "oEmbed failed for $videoId: ${e.message}")
-                // Fallback to generic info
-                null
-            }
-        }
-    }
-
-    /** Simple JSON string value extractor (no external library). */
-    private fun extractJsonString(json: String, key: String): String? {
-        val pattern = "\"${key}\"\\s*:\\s*\""
-        val idx = json.indexOf(pattern)
-        if (idx == -1) return null
-        val start = idx + pattern.length
-        val end = json.indexOf('"', start)
-        if (end == -1) return null
-        return json.substring(start, end)
-            .replace("\\/", "/")
-            .replace("\\\"", "\"")
-            .replace("\\\\", "\\")
-            .replace("\\n", "\n")
-    }
-
-    // ── Thumbnail Loading ─────────────────────────────────────────────────
-
-    private fun loadThumbnail(thumbnailUrl: String) {
-        lifecycleScope.launch {
-            val bitmap = withContext(Dispatchers.IO) {
-                try {
-                    val url = URL(thumbnailUrl)
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 10000
-                    conn.doInput = true
-                    conn.connect()
-                    BitmapFactory.decodeStream(conn.inputStream)
-                } catch (e: Exception) {
-                    if (ENABLE_DEBUG_LOGS) Log.e(TAG, "Thumbnail load failed: ${e.message}")
-                    null
+                Log.e(TAG, "Extraction failed for $videoId: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    binding.progressBar.visibility = View.GONE
+                    Toast.makeText(requireContext(),
+                        getString(R.string.error_loading_video), Toast.LENGTH_SHORT).show()
+                    // Try next video
+                    loadNextVideo()
                 }
-            }
-            if (bitmap != null) {
-                binding.imageViewThumbnail.setImageBitmap(bitmap)
-            }
-        }
-    }
-
-    // ── Open in YouTube App ───────────────────────────────────────────────
-
-    private fun openInYoutubeApp(videoId: String) {
-        try {
-            // Try YouTube app first
-            val intent = Intent(Intent.ACTION_VIEW,
-                Uri.parse("https://www.youtube.com/watch?v=$videoId")).apply {
-                setPackage("com.google.android.youtube")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            startActivity(intent)
-        } catch (e: Exception) {
-            // YouTube app not installed — fall back to browser
-            try {
-                val intent = Intent(Intent.ACTION_VIEW,
-                    Uri.parse("https://www.youtube.com/watch?v=$videoId")).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                startActivity(intent)
-            } catch (e2: Exception) {
-                Toast.makeText(requireContext(), R.string.error_no_youtube, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -378,8 +467,7 @@ class VideoPlayerFragment : Fragment() {
     // COUNTDOWN & GUESS TIMER
     // ═══════════════════════════════════════════════════════════════════════════
 
-    private fun beginCountdown(videoId: String) {
-        // 3-2-1 countdown, then enable guess
+    private fun beginCountdown() {
         val countdownSteps = listOf(3, 2, 1)
         countdownJob = lifecycleScope.launch {
             for (step in countdownSteps) {
@@ -388,20 +476,14 @@ class VideoPlayerFragment : Fragment() {
                 delay(1.seconds)
             }
             binding.textViewCountdown.visibility = View.GONE
-
-            // Countdown done — enable "Watch on YouTube" and start guess timer
-            binding.buttonWatchOnYouTube.isEnabled = true
             beginGuessTimer()
         }
     }
 
     private fun beginGuessTimer() {
-        // Guessing phase: user watches video on YouTube, then enters guess
-        // Timer: 30 seconds for the whole phase
         binding.editTextGuess.isEnabled = true
 
         guessJob = lifecycleScope.launch {
-            // Small delay for UI to settle
             delay(100)
             val totalMs = 30_000L
             val tickMs = 250L
@@ -410,14 +492,13 @@ class VideoPlayerFragment : Fragment() {
             while (elapsed < totalMs && !hasGuessedThisRound) {
                 val remaining = totalMs - elapsed
                 val seconds = (remaining / 1000).toInt() + 1
-                binding.textViewCountdown.text = getString(R.string.video_countdown, seconds)
+                binding.textViewCountdown.text = "$seconds"
                 binding.textViewCountdown.visibility = View.VISIBLE
                 delay(tickMs)
                 elapsed += tickMs
             }
 
             binding.textViewCountdown.visibility = View.GONE
-            // Auto-submit if time runs out
             if (!hasGuessedThisRound) {
                 submitGuess()
             }
@@ -437,7 +518,6 @@ class VideoPlayerFragment : Fragment() {
 
         val input = binding.editTextGuess.text.toString()
         if (input.isBlank()) {
-            // Time's up or skipped — treat as wrong
             showAnswer(video.year, Int.MAX_VALUE)
             return
         }
@@ -457,7 +537,6 @@ class VideoPlayerFragment : Fragment() {
         hasGuessedThisRound = true
         val diff = kotlin.math.abs(guessedYear - video.year)
 
-        // Score calculation
         val points = when {
             diff == 0 -> 100
             diff <= 1 -> 75
@@ -475,7 +554,6 @@ class VideoPlayerFragment : Fragment() {
         score += totalPoints
         if (!isMultiplayer) updateScoreDisplay()
 
-        // Feedback
         val feedback = when {
             diff == 0 -> getString(R.string.correct_exact)
             diff <= 2 -> getString(R.string.correct_very_close, diff)
@@ -503,7 +581,6 @@ class VideoPlayerFragment : Fragment() {
 
         binding.editTextGuess.isEnabled = false
         binding.buttonGuess.isEnabled = false
-        binding.buttonWatchOnYouTube.isEnabled = false
         binding.buttonNextVideo.visibility = View.VISIBLE
     }
 
@@ -524,11 +601,23 @@ class VideoPlayerFragment : Fragment() {
 
     fun setDifficulty(difficulty: Difficulty) {
         currentDifficulty = difficulty
-        if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Difficulty set to $difficulty")
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // HINTS (single-player only)
+    // OVERLAY TOGGLE
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private fun toggleOverlay() {
+        val isHidden = binding.videoOverlay.visibility == View.VISIBLE
+        binding.videoOverlay.visibility = if (isHidden) View.GONE else View.VISIBLE
+        binding.textViewOverlayLabel.visibility = if (isHidden) View.GONE else View.VISIBLE
+        binding.buttonToggleVideo.text = getString(
+            if (isHidden) R.string.overlay_audio_only else R.string.btn_show_video
+        )
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HINTS
     // ═══════════════════════════════════════════════════════════════════════════
 
     private fun showHint() {
@@ -561,7 +650,7 @@ class VideoPlayerFragment : Fragment() {
     fun hasMoreVideos(): Boolean = playedVideoIds.size < currentVideoList.size
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // MULTIPLAYER (same-device hot-seat)
+    // MULTIPLAYER
     // ═══════════════════════════════════════════════════════════════════════════
 
     private fun setupMultiplayerUI() {
@@ -594,27 +683,25 @@ class VideoPlayerFragment : Fragment() {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // NETWORK MULTIPLAYER (host/client via TCP)
+    // NETWORK CLIENT
     // ═══════════════════════════════════════════════════════════════════════════
 
     fun setNetworkClientMode() { isNetworkClient = true }
 
-    /**
-     * Called by host when a new video is selected.
-     * Client receives: videoId|year|title|artist
-     */
     fun loadVideoFromHost(videoId: String, year: Int, title: String, artist: String) {
         currentVideo = ApiVideo(videoId, year, 0L, title)
-        currentVideoMetadata = VideoMetadata(title, artist,
-            "https://img.youtube.com/vi/$videoId/mqdefault.jpg")
         playedVideoIds.add(videoId)
         hasGuessedThisRound = false
+        playerStarted = false
 
         binding.textViewSongTitle.text = title
         binding.textViewArtist.text = artist
-        loadThumbnail("https://img.youtube.com/vi/$videoId/mqdefault.jpg")
         binding.progressBar.visibility = View.GONE
-        beginGuessTimer()
+
+        // Play via NewPipe too (host sends the ID but we extract ourselves)
+        streamExtractJob = lifecycleScope.launch {
+            extractAndPlay(videoId)
+        }
     }
 
     fun setPendingPlayerId(playerId: String) {
@@ -627,12 +714,10 @@ class VideoPlayerFragment : Fragment() {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // COMPANION — factory + public API used by MainActivity
+    // COMPANION + PUBLIC API
     // ═══════════════════════════════════════════════════════════════════════════
 
     companion object {
-        private const val TAG = "VideoPlayerFragment"
-
         @JvmStatic
         fun newInstance(
             playerNames: List<String>? = null,
@@ -649,7 +734,6 @@ class VideoPlayerFragment : Fragment() {
         }
     }
 
-    // Public API called from MainActivity / other fragments
     fun getDuplicateCount(): Int = duplicateSkipCount
 
     fun resetDuplicateTracker() {
@@ -665,5 +749,20 @@ class VideoPlayerFragment : Fragment() {
         if (!isMultiplayer) updateScoreDisplay()
     }
 
-    // Simplified multiplayer — revealAnswers is handled via buttonRevealAnswers
+    data class VideoMetadata(
+        val title: String,
+        val authorName: String,
+        val thumbnailUrl: String
+    )
+
+    private var currentVideoMetadata: VideoMetadata? = null
+
+    /**
+     * Parse resolution string like "720p", "1080p", "360p" to numeric height.
+     */
+    private fun parseResolution(resolution: String?): Int {
+        if (resolution == null) return 0
+        val digits = resolution.filter { it.isDigit() }
+        return digits.toIntOrNull() ?: 0
+    }
 }

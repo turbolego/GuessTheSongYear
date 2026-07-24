@@ -1,311 +1,251 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/player_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/surface">
+    android:keepScreenOn="true">
 
-    <!-- Video info card: thumbnail + title + artist + Watch button -->
-    <androidx.cardview.widget.CardView
-        android:id="@+id/videoCardView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_margin="8dp"
-        app:cardBackgroundColor="@color/ink"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="4dp"
-        app:layout_constraintDimensionRatio="16:10"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+    <!-- ExoPlayer Video Surface -->
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/playerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:use_controller="true"
+        app:show_buffering="when_playing"
+        app:resize_mode="fit" />
 
-        <androidx.constraintlayout.widget.ConstraintLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
-            <!-- Video thumbnail -->
-            <ImageView
-                android:id="@+id/imageViewThumbnail"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:scaleType="centerCrop"
-                android:src="@color/steel"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent" />
-
-            <!-- Dark gradient overlay for readability -->
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:background="@drawable/thumbnail_gradient"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent" />
-
-            <!-- Song title -->
-            <TextView
-                android:id="@+id/textViewSongTitle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:textColor="@color/body_text"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintBottom_toTopOf="@+id/textViewArtist"
-                tools:text="Never Gonna Give You Up" />
-
-            <!-- Artist name -->
-            <TextView
-                android:id="@+id/textViewArtist"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="16dp"
-                android:layout_marginBottom="8dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/muted_text"
-                android:textSize="14sp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintBottom_toTopOf="@+id/buttonWatchOnYouTube"
-                tools:text="Rick Astley" />
-
-            <!-- "Watch on YouTube" button -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/buttonWatchOnYouTube"
-                style="@style/Widget.Material3.Button"
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:layout_marginStart="16dp"
-                android:layout_marginBottom="12dp"
-                android:drawableStart="@android:drawable/ic_media_play"
-                android:gravity="center"
-                android:paddingHorizontal="20dp"
-                android:text="@string/watch_on_youtube"
-                android:textSize="14sp"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:icon="@android:drawable/ic_media_play" />
-
-            <!-- Audio-only overlay -->
-            <View
-                android:id="@+id/videoOverlay"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:background="@color/ink"
-                android:visibility="gone"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent" />
-
-            <TextView
-                android:id="@+id/textViewOverlayLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/overlay_audio_only"
-                android:textColor="@color/muted_text"
-                android:textSize="14sp"
-                android:textStyle="italic"
-                android:visibility="gone"
-                app:layout_constraintBottom_toBottomOf="@+id/videoOverlay"
-                app:layout_constraintEnd_toEndOf="@+id/videoOverlay"
-                app:layout_constraintStart_toStartOf="@+id/videoOverlay"
-                app:layout_constraintTop_toTopOf="@+id/videoOverlay" />
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
-    </androidx.cardview.widget.CardView>
-
-    <!-- Score (single-player only) -->
-    <TextView
-        android:id="@+id/textViewScore"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="4dp"
-        android:textColor="@color/amber_accent"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/videoCardView"
-        tools:text="Score: 0  |  Streak: 0" />
-
-    <!-- Leaderboard (multiplayer) -->
-    <TextView
-        android:id="@+id/textViewLeaderboard"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:layout_marginHorizontal="16dp"
-        android:padding="8dp"
-        android:background="@drawable/input_background"
-        android:textSize="12sp"
-        android:textColor="@color/body_text"
+    <!-- Dark overlay (for overlay toggle / audio-only mode) -->
+    <View
+        android:id="@+id/videoOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/ink"
         android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewScore"
-        tools:text="🥇 Ola — 50 poeng\n🥈 Kari — 30 poeng"
         tools:visibility="visible" />
 
-    <!-- Multiplayer player guess list -->
+    <!-- Overlay label: shows video info when video is hidden -->
+    <TextView
+        android:id="@+id/textViewOverlayLabel"
+        style="@style/SongTitleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:text="@string/overlay_audio_only"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+    <!-- Top Info Bar: Score + Streak -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="4dp"
+        android:background="@color/ink">
+
+        <TextView
+            android:id="@+id/textViewScore"
+            style="@style/BodyText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/score_label_zero"
+            tools:text="Poeng: 0" />
+
+        <TextView
+            android:id="@+id/textViewLeaderboard"
+            style="@style/BodyText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            tools:text="🏆 Runde 1/10"
+            tools:visibility="visible" />
+
+        <TextView
+            android:id="@+id/textViewSongYear"
+            style="@style/BodyTextBold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="@color/amber_accent"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="2017"
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <!-- Bottom Panel: Song Info + Controls -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="24dp"
+        android:background="@drawable/thumbnail_gradient">
+
+        <!-- Countdown -->
+        <TextView
+            android:id="@+id/textViewCountdown"
+            style="@style/CountdownText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone"
+            tools:text="30s"
+            tools:visibility="visible" />
+
+        <!-- Song Info -->
+        <TextView
+            android:id="@+id/textViewSongTitle"
+            style="@style/SongTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="@string/loading_video"
+            tools:text="Shape of You" />
+
+        <TextView
+            android:id="@+id/textViewArtist"
+            style="@style/BodyText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingBottom="8dp"
+            tools:text="Ed Sheeran" />
+
+        <!-- Progress (loading) -->
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+        <!-- Guess Input Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingTop="8dp">
+
+            <EditText
+                android:id="@+id/editTextGuess"
+                style="@style/GuessInput"
+                android:layout_width="120dp"
+                android:layout_height="48dp"
+                android:gravity="center"
+                android:hint="@string/edit_guess_hint"
+                android:imeOptions="actionDone"
+                android:importantForAutofill="no"
+                android:inputType="number"
+                android:maxLength="4"
+                android:textSize="18sp" />
+
+            <Button
+                android:id="@+id/buttonGuess"
+                style="@style/PrimaryButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:enabled="false"
+                android:text="@string/submit_guess" />
+        </LinearLayout>
+
+        <!-- Feedback -->
+        <TextView
+            android:id="@+id/textViewFeedback"
+            style="@style/FeedbackText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone"
+            tools:text="Korrekt! (+50 poeng)"
+            tools:visibility="visible" />
+
+        <!-- Hint -->
+        <TextView
+            android:id="@+id/textViewHint"
+            style="@style/FeedbackText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone"
+            tools:text="💡 Tiår: 2010-tallet"
+            tools:visibility="visible" />
+
+        <!-- Next Video / Reveal Answers buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/buttonNextVideo"
+                style="@style/SecondaryButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/next_video"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/buttonRevealAnswers"
+                style="@style/SecondaryButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/reveal_answers"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Network Client Label -->
+        <TextView
+            android:id="@+id/textViewClientLabel"
+            style="@style/MutedText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:paddingTop="4dp"
+            android:visibility="gone"
+            tools:text="Venter på vert..."
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <!-- Toggle Overlay Button (top-right) — text-based, no external drawable needed -->
+    <TextView
+        android:id="@+id/buttonToggleVideo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="12dp"
+        android:background="@color/surface"
+        android:padding="8dp"
+        android:textColor="@color/body_text"
+        android:textSize="12sp"
+        android:layout_gravity="top|end"
+        android:text="@string/overlay_audio_only" />
+
+    <!-- Multiplayer: Player Guess RecyclerView -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewPlayers"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:layout_marginHorizontal="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_gravity="top"
+        android:layout_marginTop="52dp"
+        android:orientation="horizontal"
         android:visibility="gone"
-        android:overScrollMode="never"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewLeaderboard"
+        tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        tools:listItem="@layout/item_player_guess"
         tools:visibility="visible"
-        tools:listitem="@layout/item_player_guess" />
+        tools:itemCount="3" />
 
-    <!-- Reveal answers button (multiplayer) -->
-    <Button
-        android:id="@+id/buttonRevealAnswers"
-        style="@style/Widget.Material3.Button.OutlinedButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="@string/btn_reveal_answers"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/recyclerViewPlayers" />
-
-    <!-- Countdown (before guess phase) -->
-    <TextView
-        android:id="@+id/textViewCountdown"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:textSize="32sp"
-        android:textStyle="bold"
-        android:textColor="@color/amber_accent"
-        android:gravity="center"
-        android:visibility="visible"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/buttonRevealAnswers"
-        tools:text="3" />
-
-    <!-- Hint text -->
-    <TextView
-        android:id="@+id/textViewHint"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:layout_marginHorizontal="16dp"
-        android:textSize="12sp"
-        android:textColor="@color/muted_text"
-        android:gravity="center"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewCountdown"
-        tools:text="Tiår: 2000-tallet | Visninger: 45M" />
-
-    <!-- SINGLE-PLAYER guess UI -->
-    <EditText
-        android:id="@+id/editTextGuess"
-        android:layout_width="0dp"
-        android:layout_height="48dp"
-        android:layout_marginTop="12dp"
-        android:layout_marginStart="16dp"
-        android:inputType="number"
-        android:maxLength="4"
-        android:hint="@string/guess_hint"
-        android:background="@drawable/input_background"
-        android:paddingHorizontal="16dp"
-        android:textColor="@color/body_text"
-        android:textColorHint="@color/muted_text"
-        android:imeOptions="actionDone"
-        android:enabled="false"
-        app:layout_constraintEnd_toStartOf="@+id/buttonGuess"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewHint"
-        tools:text="2005" />
-
-    <Button
-        android:id="@+id/buttonGuess"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:layout_marginTop="12dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginStart="8dp"
-        android:text="@string/btn_guess"
-        android:enabled="false"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/editTextGuess"
-        app:layout_constraintTop_toBottomOf="@+id/textViewHint" />
-
-    <!-- Feedback text -->
-    <TextView
-        android:id="@+id/textViewFeedback"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginTop="8dp"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/editTextGuess"
-        tools:text="Perfekt! +50 poeng 🎯"
-        tools:visibility="visible" />
-
-    <!-- Release year -->
-    <TextView
-        android:id="@+id/textViewSongYear"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:textColor="@color/amber_accent"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewFeedback"
-        tools:text="Utgitt i: 2005" />
-
-    <!-- Next Video button -->
-    <Button
-        android:id="@+id/buttonNextVideo"
-        style="@style/Widget.Material3.Button.OutlinedButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="24dp"
-        android:text="@string/next_video"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewSongYear" />
-
-    <!-- Progress bar (loading) -->
-    <ProgressBar
-        android:id="@+id/progressBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
