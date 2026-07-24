@@ -6,75 +6,140 @@
     android:layout_height="match_parent"
     android:background="@color/surface">
 
-    <!-- YouTube Player (WebView + Iframe API — ToS-compliant) -->
-    <WebView
-        android:id="@+id/youtube_player_view"
+    <!-- Video info card: thumbnail + title + artist + Watch button -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/videoCardView"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:layout_constraintDimensionRatio="16:9"
+        android:layout_margin="8dp"
+        app:cardBackgroundColor="@color/ink"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="4dp"
+        app:layout_constraintDimensionRatio="16:10"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
 
-    <!-- Video overlay (toggle to hide video, keep audio) -->
-    <View
-        android:id="@+id/videoOverlay"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="@color/ink"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="@+id/youtube_player_view"
-        app:layout_constraintStart_toStartOf="@+id/youtube_player_view"
-        app:layout_constraintTop_toTopOf="@+id/youtube_player_view"
-        app:layout_constraintBottom_toBottomOf="@+id/youtube_player_view" />
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/textViewOverlayLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/overlay_audio_only"
-        android:textColor="@color/muted_text"
-        android:textSize="14sp"
-        android:textStyle="italic"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="@+id/videoOverlay"
-        app:layout_constraintEnd_toEndOf="@+id/videoOverlay"
-        app:layout_constraintStart_toStartOf="@+id/videoOverlay"
-        app:layout_constraintTop_toTopOf="@+id/videoOverlay" />
+            <!-- Video thumbnail -->
+            <ImageView
+                android:id="@+id/imageViewThumbnail"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:scaleType="centerCrop"
+                android:src="@color/steel"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent" />
 
-    <!-- Score + Controls row -->
+            <!-- Dark gradient overlay for readability -->
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:background="@drawable/thumbnail_gradient"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent" />
+
+            <!-- Song title -->
+            <TextView
+                android:id="@+id/textViewSongTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textColor="@color/body_text"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintBottom_toTopOf="@+id/textViewArtist"
+                tools:text="Never Gonna Give You Up" />
+
+            <!-- Artist name -->
+            <TextView
+                android:id="@+id/textViewArtist"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginBottom="8dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/muted_text"
+                android:textSize="14sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintBottom_toTopOf="@+id/buttonWatchOnYouTube"
+                tools:text="Rick Astley" />
+
+            <!-- "Watch on YouTube" button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonWatchOnYouTube"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginBottom="12dp"
+                android:drawableStart="@android:drawable/ic_media_play"
+                android:gravity="center"
+                android:paddingHorizontal="20dp"
+                android:text="@string/watch_on_youtube"
+                android:textSize="14sp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:icon="@android:drawable/ic_media_play" />
+
+            <!-- Audio-only overlay -->
+            <View
+                android:id="@+id/videoOverlay"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:background="@color/ink"
+                android:visibility="gone"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent" />
+
+            <TextView
+                android:id="@+id/textViewOverlayLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/overlay_audio_only"
+                android:textColor="@color/muted_text"
+                android:textSize="14sp"
+                android:textStyle="italic"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="@+id/videoOverlay"
+                app:layout_constraintEnd_toEndOf="@+id/videoOverlay"
+                app:layout_constraintStart_toStartOf="@+id/videoOverlay"
+                app:layout_constraintTop_toTopOf="@+id/videoOverlay" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Score (single-player only) -->
     <TextView
         android:id="@+id/textViewScore"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="4dp"
         android:textColor="@color/amber_accent"
         android:textSize="14sp"
         android:textStyle="bold"
-        app:layout_constraintEnd_toStartOf="@+id/buttonToggleVideo"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/youtube_player_view"
+        app:layout_constraintTop_toBottomOf="@+id/videoCardView"
         tools:text="Score: 0  |  Streak: 0" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/buttonToggleVideo"
-        style="@style/Widget.Material3.Button.TextButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="12dp"
-        android:minWidth="0dp"
-        android:minHeight="0dp"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="2dp"
-        android:text="@string/btn_hide_video"
-        android:textSize="11sp"
-        android:textColor="@color/muted_text"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/youtube_player_view" />
-
-    <!-- Leaderboard (multiplayer – always visible when mode is active) -->
+    <!-- Leaderboard (multiplayer) -->
     <TextView
         android:id="@+id/textViewLeaderboard"
         android:layout_width="0dp"
@@ -92,7 +157,7 @@
         tools:text="🥇 Ola — 50 poeng\n🥈 Kari — 30 poeng"
         tools:visibility="visible" />
 
-    <!-- Multiplayer player guess list (hidden in single-player) -->
+    <!-- Multiplayer player guess list -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewPlayers"
         android:layout_width="0dp"
@@ -120,7 +185,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/recyclerViewPlayers" />
 
-    <!-- Countdown (before video starts) -->
+    <!-- Countdown (before guess phase) -->
     <TextView
         android:id="@+id/textViewCountdown"
         android:layout_width="0dp"
@@ -152,7 +217,7 @@
         app:layout_constraintTop_toBottomOf="@+id/textViewCountdown"
         tools:text="Tiår: 2000-tallet | Visninger: 45M" />
 
-    <!-- SINGLE-PLAYER guess UI (hidden in multiplayer) -->
+    <!-- SINGLE-PLAYER guess UI -->
     <EditText
         android:id="@+id/editTextGuess"
         android:layout_width="0dp"
@@ -203,7 +268,7 @@
         tools:text="Perfekt! +50 poeng 🎯"
         tools:visibility="visible" />
 
-    <!-- Release year (shown after guess) -->
+    <!-- Release year -->
     <TextView
         android:id="@+id/textViewSongYear"
         android:layout_width="wrap_content"

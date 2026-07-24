@@ -68,6 +68,11 @@
     <string name="error_invalid_year">Vennligst skriv inn et gyldig år (1960–2025).</string>
     <string name="error_generic">Noe gikk galt. Prøv igjen.</string>
     <string name="error_no_videos_left">Ingen flere videoer tilgjengelig. Prøv å oppdatere.</string>
+    <string name="error_no_youtube">YouTube-appen er ikke installert.</string>
+
+    <!-- Watch on YouTube -->
+    <string name="watch_on_youtube">Åpne i YouTube</string>
+    <string name="video_visited">Så du videoen på YouTube</string>
 
     <!-- Overlay -->
     <string name="overlay_audio_only">🎵 Bare lyd</string>

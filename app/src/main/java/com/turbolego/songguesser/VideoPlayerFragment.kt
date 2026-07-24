@@ -1,5 +1,8 @@
 package com.turbolego.songguesser
 
+import android.content.Intent
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -15,31 +18,29 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import android.webkit.JavascriptInterface
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import com.turbolego.songguesser.databinding.FragmentVideoPlayerBinding
 import com.turbolego.songguesser.databinding.ItemPlayerGuessBinding
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlin.time.Duration.Companion.seconds
+import java.net.HttpURLConnection
+import java.net.URL
 
 private const val TAG = "VideoPlayerFragment"
 private const val YEAR_MIN = 1960
 private const val YEAR_MAX = 2025
-private const val ENABLE_DEBUG_LOGS = false  // set to true for WebView debug
-private const val PRELOAD_COUNT = 3           // buffer 3 videos ahead
-private const val PRELOAD_INTERVAL_MS = 200L  // 200ms gap between cueVideoById calls
-private val PERMANENT_EMBED_ERRORS = setOf(100, 101, 150, 152)   // Iframe error codes that mean "never try this video again"
+private const val ENABLE_DEBUG_LOGS = false
 
 data class KnownVideo(val id: String, val year: Int)
 data class ApiVideo(val id: String, val year: Int, val views: Long, val title: String)
 
+/** Video metadata fetched from YouTube oEmbed API (no key required). */
+data class VideoMetadata(
+    val title: String,
+    val authorName: String,
+    val thumbnailUrl: String
+)
+
 private val fallbackVideoList = listOf(
-    // All verified embeddable via YouTube oEmbed API (HTTP 200).
-    // Years sourced from YouTube metadata / Wikipedia.
     KnownVideo("dQw4w9WgXcQ", 1987),     // Rick Astley — Never Gonna Give You Up
     KnownVideo("ZbZSe6N_BXs", 2013),     // Pharrell Williams — Happy
     KnownVideo("1w7OgIMMRc4", 1987),     // Guns N' Roses — Sweet Child O' Mine
@@ -63,7 +64,7 @@ private val fallbackVideoList = listOf(
     KnownVideo("v2AC41dglnM", 1990),     // AC/DC — Thunderstruck
     KnownVideo("hT_nvWreIhg", 2013),     // OneRepublic — Counting Stars
     KnownVideo("fKopy74weus", 2017),     // Imagine Dragons — Thunder
-    KnownVideo("ZRtdQ81jPUQ", 2023),     // YOASOBI — アイドル
+    KnownVideo("ZRtdQ81jPUQ", 2023),     // YOASOBI — Idol
     KnownVideo("T3E9Wjbq44E", 2011),     // Gym Class Heroes — Stereo Hearts
     KnownVideo("K0ibBPhiaG0", 2017),     // Ed Sheeran — Castle On The Hill
     KnownVideo("w2Ov5jzm3j8", 2019),     // Lil Nas X — Old Town Road
@@ -77,174 +78,43 @@ private val fallbackVideoList = listOf(
     KnownVideo("YykjpeuMNEk", 2015),     // Coldplay — Hymn For The Weekend
 )
 
-private var currentVideoList: MutableList<ApiVideo> = mutableListOf()
-val playedVideoIds: MutableSet<String> = mutableSetOf()
-var duplicateSkipCount = 0
-
-/** Videos validated as embeddable via oEmbed API. All videos in fallbackVideoList are pre-verified. */
-private val embeddableVideoIds: MutableSet<String> = mutableSetOf()
-
-/**
- * Load the video pool from the curated, oEmbed-verified fallback list.
- * All videos in this list have been pre-checked for embed permission
- * via YouTube's public oEmbed API (HTTP 200 = embeddable).
- *
- * Synchronous — no network calls needed at startup.
- */
-private fun loadVideoPool() {
-    Log.d(TAG, "Loading video pool (${fallbackVideoList.size} curated, oEmbed-verified videos)")
-
-    embeddableVideoIds.clear()
-    currentVideoList.clear()
-
-    val candidates = fallbackVideoList.map {
-        ApiVideo(it.id, it.year, 0L, "Music Video")
-    }
-
-    // All videos in fallbackVideoList are pre-verified embeddable.
-    // Trust the list — no runtime oEmbed validation needed.
-    embeddableVideoIds.addAll(candidates.map { it.id })
-    currentVideoList.addAll(candidates)
-
-    Log.d(TAG, "Pool ready: ${currentVideoList.size} videos")
-}
-
-private fun pickCandidate(difficulty: Difficulty): ApiVideo? {
-    val pool = currentVideoList.filter { it.year in difficulty.yearRangeStart..difficulty.yearRangeEnd }
-    if (pool.isEmpty()) return null
-    val unplayed = pool.filter { it.id !in playedVideoIds }
-    if (unplayed.isEmpty()) {
-        Log.d(TAG, "All ${pool.size} videos played — resetting session")
-        playedVideoIds.clear(); duplicateSkipCount = 0
-        return pool.random()
-    }
-    return unplayed.random()
-}
-
-// ── Multiplayer guess row data ──────────────────────────────────────────
-
-data class PlayerGuessRow(
-    val playerName: String,
-    var selectedYear: Int = 2000,
-    var hasGuessed: Boolean = false,
-    var resultText: String? = null,
-    var resultColor: Int = 0,
-)
-
-/** Adapter that shows each player's name + NumberPicker (no individual guess button). */
-class PlayerGuessAdapter(
-    val rows: MutableList<PlayerGuessRow>,
-) : RecyclerView.Adapter<PlayerGuessAdapter.VH>() {
-
-    class VH(val binding: ItemPlayerGuessBinding) : RecyclerView.ViewHolder(binding.root)
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        return VH(ItemPlayerGuessBinding.inflate(LayoutInflater.from(parent.context), parent, false))
-    }
-
-    override fun getItemCount(): Int = rows.size
-
-    override fun onBindViewHolder(holder: VH, position: Int) {
-        val row = rows[position]
-        val b = holder.binding
-
-        b.textViewPlayerName.text = row.playerName
-
-        // Configure NumberPicker
-        val picker = b.numberPickerYear
-        picker.minValue = YEAR_MIN
-        picker.maxValue = YEAR_MAX
-        picker.value = row.selectedYear.coerceIn(YEAR_MIN, YEAR_MAX)
-        picker.setWrapSelectorWheel(false)
-        picker.setOnValueChangedListener { _, _, newVal -> rows[position].selectedYear = newVal }
-
-        if (row.hasGuessed) {
-            picker.isEnabled = false
-            if (row.resultText != null) {
-                b.textViewPlayerResult.text = row.resultText
-                b.textViewPlayerResult.visibility = View.VISIBLE
-                b.textViewPlayerResult.setTextColor(row.resultColor)
-            }
-        } else {
-            picker.isEnabled = true
-            b.textViewPlayerResult.visibility = View.GONE
-        }
-    }
-
-    /** Disable all pickers and show each player's result. */
-    fun revealAll(results: List<Pair<String, ResultDisplay>>) {
-        for (i in rows.indices) {
-            rows[i].hasGuessed = true
-            val match = results.find { it.first == rows[i].playerName }
-            if (match != null) {
-                rows[i].resultText = match.second.text
-                rows[i].resultColor = match.second.color
-            }
-        }
-        notifyDataSetChanged()
-    }
-
-    fun resetAll() {
-        rows.forEach { it.hasGuessed = false; it.resultText = null; it.selectedYear = 2000 }
-        notifyDataSetChanged()
-    }
-}
-
-data class ResultDisplay(val text: String, val color: Int)
-
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // FRAGMENT
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 
 class VideoPlayerFragment : Fragment() {
 
     private var _binding: FragmentVideoPlayerBinding? = null
     private val binding get() = _binding!!
 
+    // ── Video pool ─────────────────────────────────────────────────────────
+    var currentVideoList: MutableList<ApiVideo> = mutableListOf()
+    val playedVideoIds: MutableSet<String> = mutableSetOf()
+    var duplicateSkipCount = 0
     private var currentVideo: ApiVideo? = null
-    private var isPlayerReady = false
+    private var currentVideoMetadata: VideoMetadata? = null
+
+    // ── Game state ─────────────────────────────────────────────────────────
+    private var score = 0
+    private var streak = 0
     private var hasGuessedThisRound = false
     private var currentDifficulty: Difficulty = Difficulty.MEDIUM
-    private var errorRetryCount = 0
 
+    // ── Timers (coroutine-based) ────────────────────────────────────────────
     private var countdownJob: Job? = null
-    private var loadVideoJob: Job? = null
-    private var preloadJob: Job? = null
+    private var guessJob: Job? = null
 
-    /** Pre-loaded candidate video IDs for instant fallback on load error. */
-    private val preloadedCandidates: MutableList<ApiVideo> = mutableListOf()
-
-    // ── Multiplayer state (simultaneous guessing) ────────────────────────────
+    // ── Multiplayer ─────────────────────────────────────────────────────────
     private var isMultiplayer = false
-    private var mpPlayerNames: List<String> = emptyList()
-    private var mpRevealed = false  // true once "Vis svar" has been pressed for this round
-    private var playerAdapter: PlayerGuessAdapter? = null
+    private var isNetworkClient = false
+    private var pendingPlayerId: String? = null
 
-    /** Whether the "Vis svar" button should be shown (host = true, client = false). */
-    private var showReveal: Boolean = true
-
-    /** True if this device is hosting a network game. */
-    private val isNetworkHost: Boolean get() = HostGameService.instance != null
-
-    /** True if this device is a remote client in a network game. */
-    private val isNetworkClient: Boolean get() = JoinGameService.instance != null && !isNetworkHost
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        arguments?.let { args ->
-            val names = args.getStringArrayList(ARG_PLAYER_NAMES)
-            if (!names.isNullOrEmpty()) {
-                isMultiplayer = true
-                mpPlayerNames = names
-                MultiPlayerManager.clear()
-                names.forEach { if (it.isNotBlank()) MultiPlayerManager.addPlayer(it) }
-            }
-            showReveal = args.getBoolean(ARG_SHOW_REVEAL, true)
-        }
-    }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LIFECYCLE
+    // ═══════════════════════════════════════════════════════════════════════════
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?,
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         _binding = FragmentVideoPlayerBinding.inflate(inflater, container, false)
         return binding.root
@@ -253,55 +123,75 @@ class VideoPlayerFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Load video pool first — synchronous, all pre-verified embeddable
+        // Load video pool (synchronous — pre-verified list)
         loadVideoPool()
-
         setupListeners()
-        setupYouTubePlayer()
 
         if (isMultiplayer) setupMultiplayerUI()
 
-        if (isNetworkClient) {
-            // Client mode: register listener, no video pool (video from host)
-            setupClientNetworkListener()
-        } else {
-            // Start preloading candidates immediately (pool already loaded)
-            if (currentVideoList.isNotEmpty()) {
-                lifecycleScope.launch {
-                    preloadNextCandidates()
-                }
-            }
-        }
-
         if (!isMultiplayer) updateScoreDisplay()
-        binding.progressBar.visibility = View.VISIBLE
+        if (currentVideoList.isNotEmpty()) loadNextVideo()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // User may have returned from YouTube app — no special handling needed
     }
 
     override fun onDestroyView() {
-        super.onDestroyView()
         countdownJob?.cancel()
-        loadVideoJob?.cancel()
-        preloadJob?.cancel()
-        preloadedCandidates.clear()
-        iframeServer?.shutdown()
-        iframeServer = null
-        isPlayerReady = false
+        guessJob?.cancel()
         _binding = null
+        super.onDestroyView()
     }
 
-    fun setDifficulty(difficulty: Difficulty) { currentDifficulty = difficulty }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // VIDEO POOL
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private fun loadVideoPool() {
+        currentVideoList.clear()
+        currentVideoList.addAll(fallbackVideoList.map {
+            ApiVideo(it.id, it.year, 0L, "Music Video")
+        })
+        if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Pool ready: ${currentVideoList.size} videos")
+    }
+
+    private fun pickCandidate(difficulty: Difficulty): ApiVideo? {
+        // Filter videos that haven't been played yet this session
+        val unscored = currentVideoList.filter { it.id !in playedVideoIds }
+        if (unscored.isEmpty()) return null
+
+        val now = System.currentTimeMillis()
+
+        return when (difficulty) {
+            Difficulty.EASY -> {
+                // Pick oldest available video
+                unscored.minByOrNull { it.year }
+            }
+            Difficulty.HARD -> {
+                // Pick newest available video
+                unscored.maxByOrNull { it.year }
+            }
+            Difficulty.MEDIUM -> {
+                // Weight towards videos with years further from current year
+                // to keep a balance
+                unscored.maxByOrNull { kotlin.math.abs(it.year - 2000) }
+            }
+        } ?: unscored.firstOrNull()
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // LISTENERS
+    // UI LISTENERS
     // ═══════════════════════════════════════════════════════════════════════════
 
     private fun setupListeners() {
-        binding.buttonGuess.setOnClickListener { submitGuess() }
-
-        binding.editTextGuess.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_DONE) { submitGuess(); true } else false
+        // "Watch on YouTube" button → opens YouTube app/browser
+        binding.buttonWatchOnYouTube.setOnClickListener {
+            currentVideo?.let { video -> openInYoutubeApp(video.id) }
         }
 
+        // Guess input
         binding.editTextGuess.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -309,554 +199,332 @@ class VideoPlayerFragment : Fragment() {
                 binding.buttonGuess.isEnabled = !s.isNullOrBlank()
             }
         })
+        binding.editTextGuess.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                submitGuess()
+                true
+            } else false
+        }
+        binding.buttonGuess.setOnClickListener { submitGuess() }
 
+        // Next video button
         binding.buttonNextVideo.setOnClickListener { loadNextVideo() }
 
-        // Video overlay toggle
-        var overlayVisible = false
-        binding.buttonToggleVideo.setOnClickListener {
-            overlayVisible = !overlayVisible
-            binding.videoOverlay.visibility = if (overlayVisible) View.VISIBLE else View.GONE
-            binding.textViewOverlayLabel.visibility = if (overlayVisible) View.VISIBLE else View.GONE
-            binding.buttonToggleVideo.text = getString(
-                if (overlayVisible) R.string.btn_show_video else R.string.btn_hide_video
-            )
-        }
+        // Reveal answers (multiplayer)
+        binding.buttonRevealAnswers.setOnClickListener { revealMultiplayerAnswers() }
 
-        // Multiplayer "Vis svar" button
-        binding.buttonRevealAnswers.setOnClickListener { revealAnswers() }
+        // Toggle video overlay (audio-only mode)
+        // Not needed with Intent-based approach — overlay is cosmetic only
     }
 
-    /**
-     * Bridge between WebView YouTube JS and Kotlin.
-     * Methods called from YouTube Iframe API callbacks via JavaScript.
-     *
-     * All @JavascriptInterface methods run on a WebView internal thread —
-     * must post to main looper for any UI touches.
-     */
-    inner class YouTubeBridge {
-        @JavascriptInterface
-        fun onReady() {
-            requireActivity().runOnUiThread {
-                if (ENABLE_DEBUG_LOGS) Log.d(TAG, "YouTube Iframe: onReady")
-                isPlayerReady = true
-                if (currentVideo == null) loadNextVideo()
-                else beginCountdown(currentVideo!!.id)
-            }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LOAD & DISPLAY VIDEO
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private fun loadNextVideo() {
+        if (currentVideoList.isEmpty()) {
+            binding.progressBar.visibility = View.GONE
+            Toast.makeText(requireContext(), R.string.error_no_videos_left, Toast.LENGTH_SHORT).show()
+            return
         }
 
-        @JavascriptInterface
-        fun onStateChange(state: Int) {
-            requireActivity().runOnUiThread {
-                // YouTube PlayerState:
-                // -1 = unstarted, 0 = ended, 1 = playing, 2 = paused,
-                //  3 = buffering, 5 = video cued
-                if (state == 1) { // PLAYING
-                    errorRetryCount = 0
-                    if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Playing: ${currentVideo?.id}")
-                    enableGuessing()
-                    if (currentDifficulty.hintEnabled && !isMultiplayer) showHint()
-                    if (!isNetworkClient) preloadNextCandidates()
-                }
-            }
+        countdownJob?.cancel()
+        guessJob?.cancel()
+
+        val candidate = pickCandidate(currentDifficulty) ?: run {
+            // All played — reset
+            playedVideoIds.clear()
+            duplicateSkipCount = 0
+            Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
+            loadNextVideo()
+            return
         }
 
-        @JavascriptInterface
-        fun onError(error: Int) {
-            requireActivity().runOnUiThread {
-                if (ENABLE_DEBUG_LOGS) Log.e(TAG, "Player error: $error (attempt ${errorRetryCount + 1})")
-
-                // YouTube Iframe error code:
-                //   2   = invalid parameter
-                //   5   = HTML5 player error
-                //   100 = video not found
-                //   101 = embedding blocked by owner
-                //   150 = embedding disabled by uploader
-                //   152 = video unavailable
-
-                // On permanent embed-block errors, remove the video from pool
-                // so preloading never picks it again.
-                if (error in PERMANENT_EMBED_ERRORS && currentVideo != null) {
-                    val blockedId = currentVideo!!.id
-                    currentVideoList.removeAll { it.id == blockedId }
-                    embeddableVideoIds.remove(blockedId)
-                    preloadedCandidates.removeAll { it.id == blockedId }
-                    if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Video $blockedId permanently removed (embed blocked)")
-                }
-
-                errorRetryCount++
-                // Always try to switch — preloaded or fallback.
-                autoSwitchVideoOnError()
-            }
-        }
-    }
-
-    // ── YouTube Iframe HTML ──────────────────────────────────────────────
-
-    /**
-     * Build the HTML page hosting the official YouTube Iframe Player API.
-     * The 'Android' JS object is the bridge (added via addJavascriptInterface).
-     */
-    private fun buildIframeHtml(): String = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-            <style>
-                * { margin: 0; padding: 0; }
-                body { background: #000; overflow: hidden; }
-                #player { width: 100vw; height: 100vh; }
-            </style>
-        </head>
-        <body>
-            <div id="player"></div>
-            <script src="https://www.youtube.com/iframe_api"></script>
-            <script>
-                var player;
-                function onYouTubeIframeAPIReady() {
-                    player = new YT.Player('player', {
-                        height: '100%',
-                        width: '100%',
-                        videoId: '',
-                        host: 'https://www.youtube.com',
-                        playerVars: {
-                            'playsinline': 1,
-                            'controls': 1,
-                            'rel': 0,
-                            'fs': 1,
-                            'modestbranding': 1,
-                            'iv_load_policy': 3,
-                            'origin': window.location.origin
-                        },
-                        events: {
-                            'onReady': onPlayerReady,
-                            'onStateChange': onPlayerStateChange,
-                            'onError': onPlayerError
-                        }
-                    });
-                }
-
-                function onPlayerReady(event) {
-                    Android.onReady();
-                }
-
-                function onPlayerStateChange(event) {
-                    Android.onStateChange(event.data);
-                }
-
-                function onPlayerError(event) {
-                    Android.onError(event.data);
-                }
-
-                // ── Called from Kotlin via evaluateJavascript ──
-
-                function loadVideo(videoId) {
-                    player.loadVideoById(videoId);
-                }
-
-                function cueVideo(videoId) {
-                    player.cueVideoById(videoId);
-                }
-
-                function playVideo() {
-                    player.playVideo();
-                }
-
-                function pauseVideo() {
-                    player.pauseVideo();
-                }
-            </script>
-        </body>
-        </html>
-    """.trimIndent()
-
-    // ── WebView helpers ──────────────────────────────────────────────────
-
-    private fun loadVideoInWebView(videoId: String) {
-        val webView = binding.youtubePlayerView as WebView
-        webView.evaluateJavascript("javascript:loadVideo('$videoId')", null)
-    }
-
-    // ── Embedded HTTP server for serving iframe HTML ──────────────────────
-
-    /** Local HTTP server that serves the iframe HTML page.
-     * YouTube requires the embedding page to have a real HTTP origin
-     * that matches the 'origin' playerVar. loadDataWithBaseURL creates a
-     * data: or about:blank origin which YouTube blocks (error 150/152).
-     *
-     * This tiny server runs on 127.0.0.1:{iframeServerPort} and serves
-     * exactly one page: the iframe HTML. The WebView loads it via
-     * http://127.0.0.1:{port}/ — YouTube sees a real origin and allows
-     * the embed.
-     */
-    private var iframeServer: FiwareHttpServer? = null
-    private var iframeServerPort: Int = 0
-
-    /** Minimal embedded HTTP server serving one HTML page on localhost. */
-    private class FiwareHttpServer(private val html: String) : Thread() {
-        @Volatile var running = true
-        var port: Int = 0
-        private var serverSocket: java.net.ServerSocket? = null
-
-        override fun run() {
-            try {
-                serverSocket = java.net.ServerSocket(0)  // OS-assigned port
-                port = serverSocket!!.localPort
-                if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Iframe server on http://127.0.0.1:$port")
-
-                while (running) {
-                    val client = try { serverSocket?.accept() } catch (_: Exception) { null } ?: continue
-                    try {
-                        val reader = client.getInputStream().bufferedReader()
-                        // Read request line (ignore headers)
-                        reader.readLine()
-                        // Drain remaining headers
-                        var line = reader.readLine()
-                        while (!line.isNullOrEmpty() && line != "\r" && line != "") {
-                            line = reader.readLine()
-                        }
-
-                        val response = buildString {
-                            append("HTTP/1.1 200 OK\r\n")
-                            append("Content-Type: text/html; charset=UTF-8\r\n")
-                            append("Content-Length: ${html.length}\r\n")
-                            append("Connection: close\r\n")
-                            append("Access-Control-Allow-Origin: *\r\n")
-                            append("\r\n")
-                            append(html)
-                        }
-                        client.getOutputStream().write(response.toByteArray(Charsets.UTF_8))
-                        client.close()
-                    } catch (_: Exception) {}
-                }
-            } catch (_: Exception) {}
-        }
-
-        fun shutdown() {
-            running = false
-            try { serverSocket?.close() } catch (_: Exception) {}
-        }
-    }
-
-    private fun cueVideoInWebView(videoId: String) {
-        val webView = binding.youtubePlayerView as WebView
-        webView.evaluateJavascript("javascript:cueVideo('$videoId')", null)
-    }
-
-    private fun setupYouTubePlayer() {
-        val webView = binding.youtubePlayerView as WebView
-
-        webView.settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            mediaPlaybackRequiresUserGesture = false
-            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-        }
-        webView.webChromeClient = WebChromeClient()
-        webView.webViewClient = WebViewClient()
-
-        // Bridge — exposed as 'Android' in JavaScript
-        webView.addJavascriptInterface(YouTubeBridge(), "Android")
-
-        // Start embedded HTTP server serving the iframe HTML.
-        // YouTube requires a real origin (http://127.0.0.1) matching the
-        // 'origin' playerVar. This avoids error 150/152.
-        val html = buildIframeHtml()
-        iframeServer = FiwareHttpServer(html)
-        iframeServer!!.start()
-
-        // Wait briefly for the server to bind
-        var waited = 0
-        while (iframeServer!!.port == 0 && waited < 500) {
-            Thread.sleep(10)
-            waited += 10
-        }
-        iframeServerPort = iframeServer!!.port
-
-        // Load the iframe HTML from localhost — YouTube sees real origin
-        webView.loadUrl("http://127.0.0.1:$iframeServerPort/")
-
-        if (ENABLE_DEBUG_LOGS) {
-            @Suppress("DEPRECATION")
-            WebView.setWebContentsDebuggingEnabled(true)
-        }
-    }
-
-    // ── Video preloading (3 candidates buffered in WebView) ───────────────
-
-    /**
-     * Preload 3 next video candidates into the WebView via cueVideoById.
-     * Cued videos are buffered but don't start playing. When the current
-     * video fails, we immediately switch to the next cued candidate.
-     *
-     * Called at two points:
-     * 1. After a video starts playing (onStateChange → PLAYING)
-     * 2. Immediately when VideoPlayerFragment is created (so buffer 1 is
-     *    ready before the first video even loads).
-     */
-    private fun preloadNextCandidates() {
-        preloadJob?.cancel()
-        preloadJob = lifecycleScope.launch {
-            preloadedCandidates.clear()
-            val seen = playedVideoIds.toMutableSet()
-            seen.add(currentVideo?.id ?: "")
-
-            for (i in 0 until PRELOAD_COUNT) {
-                val candidate = pickCandidate(currentDifficulty, seen)
-                if (candidate != null) {
-                    cueVideoInWebView(candidate.id)
-                    preloadedCandidates.add(candidate)
-                    seen.add(candidate.id)
-                    delay(PRELOAD_INTERVAL_MS)
-                }
-            }
-
-            if (ENABLE_DEBUG_LOGS) {
-                Log.d(TAG, "Preloaded ${preloadedCandidates.size} candidates: " +
-                    preloadedCandidates.map { it.id }.joinToString())
-            }
-        }
-    }
-
-    /**
-     * Like pickCandidate but excludes already-played + already-preloaded IDs.
-     */
-    private fun pickCandidate(difficulty: Difficulty, excludeIds: Set<String>): ApiVideo? {
-        val pool = currentVideoList.filter { it.year in difficulty.yearRangeStart..difficulty.yearRangeEnd }
-        if (pool.isEmpty()) return null
-        val unplayed = pool.filter { it.id !in excludeIds }
-        if (unplayed.isEmpty()) return null
-        return unplayed.random()
-    }
-
-    /**
-     * Consume the next preloaded candidate — use it as the video to play.
-     * Called when current video fails to load (onError fallback).
-     */
-    private fun consumeNextPreloadedCandidate(): Boolean {
-        if (preloadedCandidates.isEmpty()) return false
-        val candidate = preloadedCandidates.removeAt(0)
-        if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Switching to preloaded: ${candidate.id}")
         currentVideo = candidate
         playedVideoIds.add(candidate.id)
-        return true
-    }
+        hasGuessedThisRound = false
 
-    private fun autoSwitchVideoOnError() {
-        // Try preloaded candidate first — instant fallback (already buffered in WebView)
-        if (preloadedCandidates.isNotEmpty()) {
-            if (consumeNextPreloadedCandidate()) {
-                // Call loadVideo (not cueVideo — preloaded was already cued, but
-                // the previous video's error state may need a fresh load).
-                // If THIS also fails, onError fires again with preloadedCandidates
-                // still having remaining candidates.
-                loadVideoInWebView(currentVideo!!.id)
-                preloadNextCandidates()  // refill buffer
-                return
-            }
-        }
-
-        // Fallback: pick a new candidate the slow way
-        lifecycleScope.launch {
-            val candidate = pickCandidate(currentDifficulty)
-            if (candidate != null) {
-                Log.d(TAG, "Auto-switching to: ${candidate.id}")
-                currentVideo = candidate
-                playedVideoIds.add(candidate.id)
-                try { cueVideoInWebView(candidate.id) } catch (_: Exception) {}
-            } else {
-                Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_LONG).show()
-                binding.buttonNextVideo.visibility = View.VISIBLE
-                binding.progressBar.visibility = View.GONE
-            }
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // MULTIPLAYER
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    private fun setupMultiplayerUI() {
-        // Hide single-player guess UI
-        binding.editTextGuess.visibility = View.GONE
-        binding.buttonGuess.visibility = View.GONE
-
-        // Show video toggle + leaderboard
-        binding.buttonToggleVideo.visibility = View.VISIBLE
-        binding.textViewLeaderboard.visibility = View.VISIBLE
-
-        // Show reveal button (only for host)
-        binding.buttonRevealAnswers.visibility = if (showReveal) View.VISIBLE else View.GONE
-
-        // Build RecyclerView with NumberPickers
-        val rows = mpPlayerNames.map { PlayerGuessRow(playerName = it) }.toMutableList()
-        playerAdapter = PlayerGuessAdapter(rows)
-
-        binding.recyclerViewPlayers.apply {
-            visibility = View.VISIBLE
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = playerAdapter
-        }
-
-        binding.textViewScore.text = "Flerspiller"
-        refreshLeaderboard()
-    }
-
-    /** Called when "Vis svar" is pressed — locks all pickers and shows results. */
-    private fun revealAnswers() {
-        if (mpRevealed || currentVideo == null) return
-        mpRevealed = true
-
-        val video = currentVideo
-        val adapter = playerAdapter ?: return
-
-        // Collect host's local guesses
-        val localGuesses = mutableMapOf<String, Int>()
-        for (row in adapter.rows) {
-            localGuesses[row.playerName] = row.selectedYear
-        }
-
-        // If hosting a network game, sync with remote clients
-        if (isNetworkHost) {
-            lifecycleScope.launch {
-                HostGameService.instance?.triggerReveal(localGuesses)
-                // After triggerReveal returns, results are stored in GameSessionManager
-                // Update local display with all results including remote players
-                computeAndDisplayResults()
-            }
-        } else {
-            computeAndDisplayResults()
-        }
-    }
-
-    private fun computeAndDisplayResults() {
-        val video = currentVideo ?: return
-        val adapter = playerAdapter ?: return
-        val results = mutableListOf<Pair<String, ResultDisplay>>()
-
-        for ((i, row) in adapter.rows.withIndex()) {
-            val name = row.playerName
-            val guessYear = row.selectedYear
-
-            MultiPlayerManager.recordGuess(name, guessYear, video!!.year, currentDifficulty)
-            val player = MultiPlayerManager.allPlayers.find { it.name == name }
-            val result = player?.guessResult ?: ScoreManager.evaluateGuess(guessYear, video.year, currentDifficulty)
-
-            val isCorrect = result.isCorrect
-            val points = result.pointsEarned
-            val color = ResourcesCompat.getColor(
-                resources, if (isCorrect) R.color.green_correct else R.color.red_wrong, null
-            )
-            val text = buildString {
-                append(getString(result.messageResId, *result.messageArgs.toTypedArray()))
-                if (points > 0) append("\n+${points} poeng")
-            }
-            results.add(name to ResultDisplay(text, color))
-        }
-
-        adapter.revealAll(results)
-        refreshLeaderboard()
-
-        // Show "Neste video" button with year
-        binding.buttonRevealAnswers.visibility = View.GONE
-        binding.buttonNextVideo.text = "${video!!.year} — ${getString(R.string.next_video)}"
-        binding.buttonNextVideo.visibility = View.VISIBLE
+        // Reset UI
+        binding.editTextGuess.text.clear()
+        binding.editTextGuess.isEnabled = false
+        binding.buttonGuess.isEnabled = false
+        binding.textViewFeedback.visibility = View.GONE
         binding.textViewSongYear.visibility = View.GONE
-    }
+        binding.buttonNextVideo.visibility = View.GONE
+        binding.textViewHint.visibility = View.GONE
+        binding.progressBar.visibility = View.VISIBLE
+        binding.buttonWatchOnYouTube.isEnabled = false
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // NETWORK CLIENT MODE
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    private fun setupClientNetworkListener() {
-        val joinService = JoinGameService.instance ?: return
-        joinService.networkListener = object : GameNetworkListener {
-            override fun onHostingStarted(sessionId: String, hostName: String) {}
-            override fun onServiceRegistered(serviceName: String) {}
-            override fun onJoinedSession(session: GameSessionManager.GameSession) {}
-            override fun onPlayerJoined(playerName: String, clientIp: String) {}
-            override fun onPlayerDisconnected(playerName: String) {}
-            override fun onTurnReceived(playerName: String) {}
-            override fun onGuessReceived(playerName: String, guess: Int, correctYear: Int, score: Int) {}
-            override fun onSessionEnded() {
-                requireActivity().runOnUiThread {
-                    Toast.makeText(requireContext(), "Spillet er slutt", Toast.LENGTH_LONG).show()
+        if (isNetworkClient) {
+            // Client mode: host sends the video info, we just display
+            binding.textViewSongTitle.text = candidate.title
+            binding.textViewArtist.text = getString(R.string.year_unknown)
+            binding.progressBar.visibility = View.GONE
+            beginGuessTimer()
+        } else {
+            // Fetch metadata from oEmbed (async)
+            binding.textViewSongTitle.text = candidate.title
+            lifecycleScope.launch {
+                val metadata = fetchMetadata(candidate.id)
+                currentVideoMetadata = metadata
+                if (metadata != null) {
+                    binding.textViewSongTitle.text = metadata.title
+                    binding.textViewArtist.text = metadata.authorName
+                    loadThumbnail(metadata.thumbnailUrl)
                 }
-            }
-            override fun onNetworkError(error: String) {
-                Log.w(TAG, "Network error (client): $error")
-            }
-
-            override fun onHostingStatus(status: String) {
-                Log.d(TAG, "Client host status: $status")
-            }
-
-            override fun onVideoReceived(videoId: String, year: Int, title: String) {
-                Log.d(TAG, "Client received VIDEO: $videoId ($year - $title)")
-                requireActivity().runOnUiThread {
-                    // Create a candidate from the host's broadcast
-                    val candidate = ApiVideo(id = videoId, year = year, views = 0L, title = title)
-                    currentVideo = candidate
-                    playedVideoIds.add(videoId)
-                    if (isPlayerReady) {
-                        beginCountdown(videoId)
-                    }
-                }
-            }
-
-            override fun onRevealReceived() {
-                Log.d(TAG, "Client received REVEAL — sending blind guess")
-                val adapter = playerAdapter
-                if (adapter != null && adapter.rows.isNotEmpty()) {
-                    val myGuess = adapter.rows[0].selectedYear
-                    lifecycleScope.launch {
-                        joinService.sendGuessBlind(myGuess)
-                    }
-                }
-            }
-
-            override fun onRevealResultReceived(results: List<GameSessionManager.RevealResult>) {
-                Log.d(TAG, "Client received ${results.size} reveal results")
-                requireActivity().runOnUiThread {
-                    displayNetworkResults(results)
-                }
+                binding.progressBar.visibility = View.GONE
+                beginCountdown(candidate.id)
             }
         }
     }
 
-    private fun displayNetworkResults(results: List<GameSessionManager.RevealResult>) {
-        val adapter = playerAdapter ?: return
-        val displayResults = results.map {
-            val color = ResourcesCompat.getColor(
-                resources, if (it.isCorrect) R.color.green_correct else R.color.red_wrong, null
-            )
-            val text = if (it.isCorrect) {
-                "Riktig! ±${it.difference} år\n+${it.pointsEarned} poeng"
+    // ── oEmbed Metadata Fetching ──────────────────────────────────────────
+
+    /**
+     * Fetch video metadata from YouTube's public oEmbed API.
+     * No API key required — returns JSON with title, author_name, thumbnail_url.
+     */
+    private suspend fun fetchMetadata(videoId: String): VideoMetadata? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = URL("https://www.youtube.com/oembed?url=" +
+                    "https://www.youtube.com/watch?v=$videoId&format=json")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 10000
+                conn.readTimeout = 5000
+                conn.setRequestProperty("User-Agent",
+                    "GuessTheSongYear/1.0 (Android)")
+                val json = conn.inputStream.bufferedReader().use { it.readText() }
+
+                // Simple JSON parsing — no external library needed
+                val title = extractJsonString(json, "title") ?: "Music Video"
+                val authorName = extractJsonString(json, "author_name") ?: "Unknown Artist"
+                val thumbUrl = extractJsonString(json, "thumbnail_url")
+                    ?: "https://img.youtube.com/vi/$videoId/mqdefault.jpg"
+
+                VideoMetadata(title, authorName, thumbUrl)
+            } catch (e: Exception) {
+                if (ENABLE_DEBUG_LOGS) Log.e(TAG, "oEmbed failed for $videoId: ${e.message}")
+                // Fallback to generic info
+                null
+            }
+        }
+    }
+
+    /** Simple JSON string value extractor (no external library). */
+    private fun extractJsonString(json: String, key: String): String? {
+        val pattern = "\"${key}\"\\s*:\\s*\""
+        val idx = json.indexOf(pattern)
+        if (idx == -1) return null
+        val start = idx + pattern.length
+        val end = json.indexOf('"', start)
+        if (end == -1) return null
+        return json.substring(start, end)
+            .replace("\\/", "/")
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+            .replace("\\n", "\n")
+    }
+
+    // ── Thumbnail Loading ─────────────────────────────────────────────────
+
+    private fun loadThumbnail(thumbnailUrl: String) {
+        lifecycleScope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                try {
+                    val url = URL(thumbnailUrl)
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.connectTimeout = 10000
+                    conn.doInput = true
+                    conn.connect()
+                    BitmapFactory.decodeStream(conn.inputStream)
+                } catch (e: Exception) {
+                    if (ENABLE_DEBUG_LOGS) Log.e(TAG, "Thumbnail load failed: ${e.message}")
+                    null
+                }
+            }
+            if (bitmap != null) {
+                binding.imageViewThumbnail.setImageBitmap(bitmap)
+            }
+        }
+    }
+
+    // ── Open in YouTube App ───────────────────────────────────────────────
+
+    private fun openInYoutubeApp(videoId: String) {
+        try {
+            // Try YouTube app first
+            val intent = Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://www.youtube.com/watch?v=$videoId")).apply {
+                setPackage("com.google.android.youtube")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            // YouTube app not installed — fall back to browser
+            try {
+                val intent = Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://www.youtube.com/watch?v=$videoId")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+            } catch (e2: Exception) {
+                Toast.makeText(requireContext(), R.string.error_no_youtube, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COUNTDOWN & GUESS TIMER
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private fun beginCountdown(videoId: String) {
+        // 3-2-1 countdown, then enable guess
+        val countdownSteps = listOf(3, 2, 1)
+        countdownJob = lifecycleScope.launch {
+            for (step in countdownSteps) {
+                binding.textViewCountdown.text = step.toString()
+                binding.textViewCountdown.visibility = View.VISIBLE
+                delay(1.seconds)
+            }
+            binding.textViewCountdown.visibility = View.GONE
+
+            // Countdown done — enable "Watch on YouTube" and start guess timer
+            binding.buttonWatchOnYouTube.isEnabled = true
+            beginGuessTimer()
+        }
+    }
+
+    private fun beginGuessTimer() {
+        // Guessing phase: user watches video on YouTube, then enters guess
+        // Timer: 30 seconds for the whole phase
+        binding.editTextGuess.isEnabled = true
+
+        guessJob = lifecycleScope.launch {
+            // Small delay for UI to settle
+            delay(100)
+            val totalMs = 30_000L
+            val tickMs = 250L
+            var elapsed = 0L
+
+            while (elapsed < totalMs && !hasGuessedThisRound) {
+                val remaining = totalMs - elapsed
+                val seconds = (remaining / 1000).toInt() + 1
+                binding.textViewCountdown.text = getString(R.string.video_countdown, seconds)
+                binding.textViewCountdown.visibility = View.VISIBLE
+                delay(tickMs)
+                elapsed += tickMs
+            }
+
+            binding.textViewCountdown.visibility = View.GONE
+            // Auto-submit if time runs out
+            if (!hasGuessedThisRound) {
+                submitGuess()
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // GUESS LOGIC
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private fun submitGuess() {
+        if (hasGuessedThisRound) return
+        val video = currentVideo ?: return
+
+        guessJob?.cancel()
+        binding.textViewCountdown.visibility = View.GONE
+
+        val input = binding.editTextGuess.text.toString()
+        if (input.isBlank()) {
+            // Time's up or skipped — treat as wrong
+            showAnswer(video.year, Int.MAX_VALUE)
+            return
+        }
+
+        val guessedYear = input.toIntOrNull() ?: run {
+            Toast.makeText(requireContext(), R.string.error_invalid_year, Toast.LENGTH_SHORT).show()
+            beginGuessTimer()
+            return
+        }
+
+        if (guessedYear < YEAR_MIN || guessedYear > YEAR_MAX) {
+            Toast.makeText(requireContext(), R.string.error_invalid_year, Toast.LENGTH_SHORT).show()
+            beginGuessTimer()
+            return
+        }
+
+        hasGuessedThisRound = true
+        val diff = kotlin.math.abs(guessedYear - video.year)
+
+        // Score calculation
+        val points = when {
+            diff == 0 -> 100
+            diff <= 1 -> 75
+            diff <= 2 -> 50
+            diff <= 3 -> 30
+            diff <= 5 -> 20
+            diff <= 10 -> 10
+            else -> 0
+        }
+
+        streak = if (points > 0) streak + 1 else 0
+        val streakMultiplier = 1 + (streak / 3)
+        val totalPoints = points * streakMultiplier
+
+        score += totalPoints
+        if (!isMultiplayer) updateScoreDisplay()
+
+        // Feedback
+        val feedback = when {
+            diff == 0 -> getString(R.string.correct_exact)
+            diff <= 2 -> getString(R.string.correct_very_close, diff)
+            diff <= 5 -> getString(R.string.correct_close, diff)
+            diff <= 10 -> getString(R.string.correct_ok, diff)
+            else -> getString(R.string.wrong, video.year)
+        }
+        val pointsStr = if (totalPoints > 0) " (${getString(R.string.score_earned, totalPoints)})" else ""
+        binding.textViewFeedback.text = "$feedback$pointsStr"
+        binding.textViewFeedback.visibility = View.VISIBLE
+
+        showAnswer(video.year, guessedYear)
+    }
+
+    private fun showAnswer(correctYear: Int, guessedYear: Int) {
+        binding.textViewSongYear.text = getString(R.string.song_release_year, correctYear)
+        binding.textViewSongYear.visibility = View.VISIBLE
+        binding.textViewSongYear.setTextColor(
+            if (guessedYear == correctYear) {
+                ResourcesCompat.getColor(resources, R.color.amber_accent, null)
             } else {
-                "Feil: ${it.correctYear} (±${it.difference} år)\n+${it.pointsEarned} poeng"
+                ResourcesCompat.getColor(resources, R.color.error_red, null)
             }
-            it.playerName to ResultDisplay(text, color)
-        }
-        adapter.revealAll(displayResults)
-        refreshLeaderboard()
+        )
 
-        binding.buttonNextVideo.text = "${results.firstOrNull()?.correctYear ?: ""} — ${getString(R.string.next_video)}"
+        binding.editTextGuess.isEnabled = false
+        binding.buttonGuess.isEnabled = false
+        binding.buttonWatchOnYouTube.isEnabled = false
         binding.buttonNextVideo.visibility = View.VISIBLE
     }
 
-    private fun refreshLeaderboard() {
-        val text = buildString {
-            MultiPlayerManager.getLeaderboard().forEachIndexed { i, p ->
-                when (i) {
-                    0 -> append("🥇 ")
-                    1 -> append("🥈 ")
-                    2 -> append("🥉 ")
-                    else -> append("${i + 1}. ")
-                }
-                append("${p.name} — ${p.score} poeng\n")
-            }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SCORE DISPLAY
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private fun updateScoreDisplay() {
+        binding.textViewScore.text = getString(R.string.score_label, score)
+        if (streak > 0) {
+            binding.textViewScore.append("  |  " + getString(R.string.streak_label, streak))
         }
-        binding.textViewLeaderboard.text = text
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DIFFICULTY
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    fun setDifficulty(difficulty: Difficulty) {
+        currentDifficulty = difficulty
+        if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Difficulty set to $difficulty")
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -878,177 +546,124 @@ class VideoPlayerFragment : Fragment() {
     // GAME FLOW
     // ═══════════════════════════════════════════════════════════════════════════
 
-    private fun submitGuess() {
-        // Single-player only
-        if (isMultiplayer || hasGuessedThisRound) return
-        val guessText = binding.editTextGuess.text.toString().trim()
-        if (guessText.length != 4) {
-            Toast.makeText(requireContext(), R.string.error_invalid_year, Toast.LENGTH_SHORT).show()
-            return
-        }
-        val guessedYear = guessText.toIntOrNull()
-        if (guessedYear == null || guessedYear !in YEAR_MIN..YEAR_MAX) {
-            Toast.makeText(requireContext(), R.string.error_invalid_year, Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val video = currentVideo ?: return
-        hasGuessedThisRound = true
-        binding.editTextGuess.isEnabled = false
-        binding.buttonGuess.isEnabled = false
-
-        val result = ScoreManager.evaluateGuess(guessedYear, video.year, currentDifficulty)
-
-        val fbText = if (result.pointsEarned > 0) {
-            "${getString(result.messageResId, *result.messageArgs.toTypedArray())}\n${getString(R.string.score_earned, result.pointsEarned)}"
-        } else {
-            getString(result.messageResId, *result.messageArgs.toTypedArray())
-        }
-        binding.textViewFeedback.text = fbText
-        binding.textViewFeedback.setTextColor(
-            ResourcesCompat.getColor(
-                resources, if (result.isCorrect) R.color.green_correct else R.color.red_wrong, null
-            )
-        )
-        binding.textViewFeedback.visibility = View.VISIBLE
-
-        binding.textViewSongYear.text = getString(R.string.song_release_year, video.year)
-        binding.textViewSongYear.visibility = View.GONE
-
-        binding.buttonNextVideo.text = "${video.year} — ${getString(R.string.next_video)}"
-        binding.buttonNextVideo.visibility = View.VISIBLE
-        updateScoreDisplay()
-    }
-
-    private fun loadNextVideo() {
-        Log.d(TAG, "Loading next video (pool=${currentVideoList.size})")
-        resetRoundUI()
-
-        countdownJob?.cancel()
-        loadVideoJob?.cancel()
-
-        loadVideoJob = lifecycleScope.launch {
-            try {
-                val candidate = pickCandidate(currentDifficulty)
-                if (candidate == null) {
-                    Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
-                    return@launch
-                }
-
-                currentVideo = candidate
-                playedVideoIds.add(candidate.id)
-
-                // Reset multiplayer state
-                if (isMultiplayer) {
-                    mpRevealed = false
-                    playerAdapter?.resetAll()
-                    binding.buttonRevealAnswers.visibility = if (showReveal) View.VISIBLE else View.GONE
-                    binding.buttonNextVideo.visibility = View.GONE
-                    refreshLeaderboard()
-                }
-
-                // Broadcast video info to remote clients
-                if (isNetworkHost) {
-                    HostGameService.instance?.broadcastVideo(candidate.id, candidate.year, candidate.title)
-                }
-
-                if (isPlayerReady) {
-                    beginCountdown(candidate.id)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error loading video", e)
-                Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun beginCountdown(videoId: String) {
-        binding.textViewCountdown.visibility = View.VISIBLE
-        binding.progressBar.visibility = View.GONE
-
-        countdownJob = lifecycleScope.launch {
-            for (i in 3 downTo 1) {
-                binding.textViewCountdown.text = getString(R.string.video_countdown, i)
-                delay(1.seconds)
-            }
-            binding.textViewCountdown.visibility = View.GONE
-            try {
-                loadVideoInWebView(videoId)
-            } catch (e: Exception) {
-                Log.e(TAG, "loadVideo threw", e)
-                Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun resetRoundUI() {
-        binding.progressBar.visibility = View.VISIBLE
-        binding.textViewCountdown.visibility = View.GONE
-        binding.textViewHint.visibility = View.GONE
-        binding.textViewSongYear.visibility = View.GONE
-        binding.textViewFeedback.visibility = View.GONE
-        binding.buttonNextVideo.visibility = View.GONE
-        binding.editTextGuess.isEnabled = false
-        binding.editTextGuess.setText("")
-        binding.buttonGuess.isEnabled = false
-        hasGuessedThisRound = false
-        errorRetryCount = 0
-    }
-
-    private fun enableGuessing() {
-        if (isMultiplayer) return  // NumberPickers are always enabled until reveal
-        binding.editTextGuess.isEnabled = true
-        binding.editTextGuess.requestFocus()
-    }
-
-    private fun updateScoreDisplay() {
-        if (isMultiplayer) {
-            binding.textViewScore.text = "Flerspiller"
-        } else {
-            binding.textViewScore.text = buildString {
-                append("Score: ${ScoreManager.score}")
-                if (ScoreManager.streak > 0) append("  |  Streak: ${ScoreManager.streak}")
-            }
-        }
-    }
-
-    // ── Public API for MainActivity ──────────────────────────────────────────
-
-    fun isMultiplayerMode(): Boolean = isMultiplayer
-
-    fun resetScore() {
-        ScoreManager.reset()
-        updateScoreDisplay()
-    }
-
-    fun getStats(): String = buildString {
-        append("Totalt: ${ScoreManager.guessCount} gjetninger")
-        append("\nRiktige: ${ScoreManager.correctCount} (${(ScoreManager.accuracy * 100).toInt()}%)")
-        append("\nHøyeste streak: ${ScoreManager.highStreak}")
-        append("\nPoeng totalt: ${ScoreManager.score}")
-        append("\nDuplikater hoppet: $duplicateSkipCount")
-    }
-
-    fun getDuplicateCount(): Int = duplicateSkipCount
-
-    fun resetDuplicateTracker() {
-        duplicateSkipCount = 0
+    fun resetGame() {
         playedVideoIds.clear()
+        duplicateSkipCount = 0
+        score = 0
+        streak = 0
+        if (!isMultiplayer) updateScoreDisplay()
+        loadNextVideo()
     }
+
+    fun getScore(): Int = score
+    fun getStreak(): Int = streak
+    fun getRemainingVideos(): Int = currentVideoList.size - playedVideoIds.size
+    fun hasMoreVideos(): Boolean = playedVideoIds.size < currentVideoList.size
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MULTIPLAYER (same-device hot-seat)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private fun setupMultiplayerUI() {
+        isMultiplayer = true
+        binding.textViewScore.visibility = View.GONE
+        binding.textViewLeaderboard.visibility = View.VISIBLE
+        binding.recyclerViewPlayers.visibility = View.VISIBLE
+        binding.buttonRevealAnswers.visibility = View.VISIBLE
+    }
+
+    fun setMultiplayer(isMp: Boolean, players: List<String>? = null) {
+        isMultiplayer = isMp
+        if (!isAdded) return
+        if (isMp) {
+            setupMultiplayerUI()
+        } else {
+            isMultiplayer = false
+            binding.textViewScore.visibility = View.VISIBLE
+            binding.textViewLeaderboard.visibility = View.GONE
+            binding.recyclerViewPlayers.visibility = View.GONE
+            binding.buttonRevealAnswers.visibility = View.GONE
+        }
+    }
+
+    private fun revealMultiplayerAnswers() {
+        currentVideo?.let { video ->
+            val answer = video.year.toString()
+            Toast.makeText(requireContext(), "Riktig år: $answer", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NETWORK MULTIPLAYER (host/client via TCP)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    fun setNetworkClientMode() { isNetworkClient = true }
+
+    /**
+     * Called by host when a new video is selected.
+     * Client receives: videoId|year|title|artist
+     */
+    fun loadVideoFromHost(videoId: String, year: Int, title: String, artist: String) {
+        currentVideo = ApiVideo(videoId, year, 0L, title)
+        currentVideoMetadata = VideoMetadata(title, artist,
+            "https://img.youtube.com/vi/$videoId/mqdefault.jpg")
+        playedVideoIds.add(videoId)
+        hasGuessedThisRound = false
+
+        binding.textViewSongTitle.text = title
+        binding.textViewArtist.text = artist
+        loadThumbnail("https://img.youtube.com/vi/$videoId/mqdefault.jpg")
+        binding.progressBar.visibility = View.GONE
+        beginGuessTimer()
+    }
+
+    fun setPendingPlayerId(playerId: String) {
+        pendingPlayerId = playerId
+    }
+
+    fun submitGuessOnHost(guessedYear: Int) {
+        if (isNetworkClient) return
+        submitGuess()
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COMPANION — factory + public API used by MainActivity
+    // ═══════════════════════════════════════════════════════════════════════════
 
     companion object {
-        private const val ARG_PLAYER_NAMES = "playerNames"
-        private const val ARG_SHOW_REVEAL = "SHOW_REVEAL"
+        private const val TAG = "VideoPlayerFragment"
 
-        fun newInstance(playerNames: List<String>? = null, showReveal: Boolean = true): VideoPlayerFragment {
+        @JvmStatic
+        fun newInstance(
+            playerNames: List<String>? = null,
+            showReveal: Boolean = false
+        ): VideoPlayerFragment {
             val frag = VideoPlayerFragment()
-            val args = Bundle()
-            if (!playerNames.isNullOrEmpty()) {
-                args.putStringArrayList(ARG_PLAYER_NAMES, ArrayList(playerNames))
+            frag.arguments = Bundle().apply {
+                if (playerNames != null) {
+                    putStringArrayList("playerNames", ArrayList(playerNames))
+                }
+                putBoolean("showReveal", showReveal)
             }
-            args.putBoolean(ARG_SHOW_REVEAL, showReveal)
-            frag.arguments = args
             return frag
         }
     }
+
+    // Public API called from MainActivity / other fragments
+    fun getDuplicateCount(): Int = duplicateSkipCount
+
+    fun resetDuplicateTracker() {
+        playedVideoIds.clear()
+        duplicateSkipCount = 0
+    }
+
+    fun getStats(): String = "$score|$streak|${playedVideoIds.size}"
+
+    fun resetScore() {
+        score = 0
+        streak = 0
+        if (!isMultiplayer) updateScoreDisplay()
+    }
+
+    // Simplified multiplayer — revealAnswers is handled via buttonRevealAnswers
 }
