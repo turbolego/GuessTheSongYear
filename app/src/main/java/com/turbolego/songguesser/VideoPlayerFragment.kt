@@ -83,15 +83,20 @@ private val fallbackVideoList = listOf(
 // ═══════════════════════════════════════════════════════════════════════════
 
 class SimpleDownloader : Downloader() {
+    companion object {
+        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
+    }
+
     override fun execute(request: Request): Response {
-        val url = URL(request.url())
-        val conn = url.openConnection() as HttpURLConnection
-        conn.connectTimeout = 30000
-        conn.readTimeout = 30000
-        conn.requestMethod = request.httpMethod()
-        for ((key, value) in request.headers().entries) {
-            conn.setRequestProperty(key, value.joinToString(", "))
-        }
+    val url = URL(request.url())
+    val conn = url.openConnection() as HttpURLConnection
+    conn.connectTimeout = 30000
+    conn.readTimeout = 30000
+    conn.requestMethod = request.httpMethod()
+    conn.setRequestProperty("User-Agent", SimpleDownloader.USER_AGENT)
+    for ((key, value) in request.headers().entries) {
+        conn.setRequestProperty(key, value.joinToString(", "))
+    }
         // Follow redirects to get the actual content
         conn.instanceFollowRedirects = true
 

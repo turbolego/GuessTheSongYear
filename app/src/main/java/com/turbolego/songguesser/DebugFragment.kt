@@ -30,6 +30,7 @@ class DebugFragment : Fragment() {
 
     private var youtubeService: StreamingService? = null
     private var testInProgress = false
+    private var testInProgressResult = "Ferdig"
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -94,12 +95,9 @@ class DebugFragment : Fragment() {
         }
     }
 
-    private var testInProgressResult = "Ferdig"
-
     private suspend fun runExtraction(videoId: String) {
         withContext(Dispatchers.IO) {
             try {
-                // Step 1: Initialization
                 val service = youtubeService
                 if (service == null) {
                     appendLog("❌ YouTube service ikke tilgjengelig — NewPipe init feilet")
@@ -108,7 +106,6 @@ class DebugFragment : Fragment() {
                 }
                 appendLog("✅ YouTube service: ${service.serviceInfo.name}")
 
-                // Step 2: Get StreamInfo
                 val url = "https://www.youtube.com/watch?v=$videoId"
                 appendLog("📡 Henter StreamInfo for: $url")
                 appendLog("⏳ Dette kan ta 3-10 sekunder...")
@@ -118,32 +115,27 @@ class DebugFragment : Fragment() {
                 val elapsed = System.currentTimeMillis() - startTime
                 appendLog("✅ StreamInfo hentet på ${elapsed}ms")
 
-                // Step 3: Metadata
                 appendLog("📝 Tittel: ${streamInfo.name ?: "(ingen)"}")
                 appendLog("📝 Artist: ${streamInfo.uploaderName ?: "(ingen)"}")
                 appendLog("📝 Varighet: ${streamInfo.duration ?: "?"} sekunder")
                 appendLog("📝 Kanal: ${streamInfo.uploaderUrl ?: "(ukjent)"}")
 
-                // Step 4: Stream counts
                 appendLog("")
                 appendLog("📊 Strømmer funnet:")
                 appendLog("   • Video (progressive): ${streamInfo.videoStreams.size}")
                 appendLog("   • Video-only (DASH):  ${streamInfo.videoOnlyStreams.size}")
                 appendLog("   • Audio-only:         ${streamInfo.audioStreams.size}")
 
-                // Step 5: Progressive streams detail
                 if (streamInfo.videoStreams.isNotEmpty()) {
                     appendLog("")
                     appendLog("📊 Progressive streams:")
                     for ((i, s) in streamInfo.videoStreams.withIndex()) {
                         val res = s.resolution ?: "?"
                         val fmt = s.getFormat()?.name ?: "?"
-                        val hasAudio = !s.isVideoOnly
-                        appendLog("   [$i] ${res} (${fmt}) audio=$hasAudio url=${s.url?.take(60)}...")
+                        appendLog("   [$i] ${res} (${fmt}) url=${s.url?.take(60)}...")
                     }
                 }
 
-                // Step 6: Pick best stream
                 val bestProgressive = streamInfo.videoStreams
                     .filter { !it.isVideoOnly }
                     .maxByOrNull { parseRes(it.resolution) }
@@ -154,7 +146,6 @@ class DebugFragment : Fragment() {
                     appendLog("   URL: ${bestProgressive.url?.take(80)}...")
                     appendLog("   Format: ${bestProgressive.getFormat()?.name}")
 
-                    // Step 7: Verify URL is reachable
                     appendLog("")
                     appendLog("🔍 Verifiserer stream URL...")
                     val verifyOk = verifyUrl(bestProgressive.url ?: "")
@@ -166,7 +157,6 @@ class DebugFragment : Fragment() {
                         testInProgressResult = "⚠️ DELVIS — URL funnet, men ikke verifisert"
                     }
                 } else {
-                    // Fallback to video-only or audio
                     appendLog("⚠️ Ingen progressive streams funnet!")
                     if (streamInfo.videoOnlyStreams.isNotEmpty()) {
                         val best = streamInfo.videoOnlyStreams.first()
@@ -180,7 +170,6 @@ class DebugFragment : Fragment() {
                         testInProgressResult = "❌ FEILET — Ingen spillebare strømmer"
                     }
                 }
-
             } catch (e: Exception) {
                 appendLog("")
                 appendLog("❌ EKSTRAKSJON FEILET:")
@@ -190,7 +179,6 @@ class DebugFragment : Fragment() {
                 appendLog("📋 Stack trace:")
                 logStackTrace(e)
 
-                // Find root cause
                 var cause: Throwable? = e
                 while (cause?.cause != null) {
                     cause = cause.cause
@@ -198,7 +186,6 @@ class DebugFragment : Fragment() {
                         appendLog("   Caused by: ${cause.javaClass.simpleName}: ${cause.message}")
                     }
                 }
-
                 testInProgressResult = "❌ FEILET — $e"
             }
         }
@@ -236,7 +223,6 @@ class DebugFragment : Fragment() {
             ps.flush()
             val trace = baos.toString()
             val lines = trace.lines().toList()
-            // Show first 15 lines of stack trace
             for (line in lines.take(15)) {
                 appendLog("   $line")
             }
@@ -264,10 +250,14 @@ class DebugFragment : Fragment() {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Debug Downloader — same as SimpleDownloader but with full logging
+    // VERBOSE DOWNLOADER — NewPipe HTTP with full logging + proper UA
     // ═══════════════════════════════════════════════════════════════
 
     class DebugDownloader : Downloader() {
+        companion object {
+            private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
+        }
+
         override fun execute(request: Request): Response {
             val url = URL(request.url())
             val method = request.httpMethod()
@@ -277,12 +267,12 @@ class DebugFragment : Fragment() {
             conn.connectTimeout = 30000
             conn.readTimeout = 30000
             conn.requestMethod = method
+            conn.setRequestProperty("User-Agent", USER_AGENT)
             for ((key, value) in request.headers().entries) {
                 conn.setRequestProperty(key, value.joinToString(", "))
             }
             conn.instanceFollowRedirects = true
 
-            // Send request body for POST
             val dataToSend = request.dataToSend()
             if (dataToSend != null && dataToSend.isNotEmpty()) {
                 conn.doOutput = true
