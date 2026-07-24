@@ -508,28 +508,9 @@ class VideoPlayerFragment : Fragment() {
     }
 
     private fun beginGuessTimer() {
+        guessJob?.cancel()
         binding.editTextGuess.isEnabled = true
-
-        guessJob = lifecycleScope.launch {
-            delay(100)
-            val totalMs = 30_000L
-            val tickMs = 250L
-            var elapsed = 0L
-
-            while (elapsed < totalMs && !hasGuessedThisRound) {
-                val remaining = totalMs - elapsed
-                val seconds = (remaining / 1000).toInt() + 1
-                binding.textViewCountdown.text = "$seconds"
-                binding.textViewCountdown.visibility = View.VISIBLE
-                delay(tickMs)
-                elapsed += tickMs
-            }
-
-            binding.textViewCountdown.visibility = View.GONE
-            if (!hasGuessedThisRound) {
-                submitGuess()
-            }
-        }
+        binding.textViewCountdown.visibility = View.GONE
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
