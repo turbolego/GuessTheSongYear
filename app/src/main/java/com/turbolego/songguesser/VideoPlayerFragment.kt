@@ -377,13 +377,11 @@ class VideoPlayerFragment : Fragment() {
         binding.editTextGuess.isEnabled = false
         binding.buttonGuess.isEnabled = false
         binding.textViewFeedback.visibility = View.GONE
-        binding.textViewSongYear.visibility = View.GONE
-        binding.textViewSongYear.text = ""
         binding.buttonNextVideo.visibility = View.GONE
         binding.textViewHint.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
-                binding.textViewSongTitle.text = "???"
-                binding.textViewArtist.text = "???"
+        binding.textViewSongTitle.text = "???"
+        binding.textViewArtist.text = "???"
         binding.textViewCountdown.visibility = View.GONE
 
         // Stop current playback
@@ -602,16 +600,6 @@ class VideoPlayerFragment : Fragment() {
     }
 
     private fun showAnswer(correctYear: Int, guessedYear: Int) {
-        binding.textViewSongYear.text = getString(R.string.song_release_year, correctYear)
-        binding.textViewSongYear.visibility = View.VISIBLE
-        binding.textViewSongYear.setTextColor(
-            if (guessedYear == correctYear) {
-                ResourcesCompat.getColor(resources, R.color.amber_accent, null)
-            } else {
-                ResourcesCompat.getColor(resources, R.color.error_red, null)
-            }
-        )
-
         binding.editTextGuess.isEnabled = false
         binding.buttonGuess.isEnabled = false
         binding.buttonNextVideo.visibility = View.VISIBLE

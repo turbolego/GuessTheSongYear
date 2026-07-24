@@ -47,51 +47,7 @@
             android:visibility="gone"
             tools:visibility="visible" />
 
-        <!-- Top Info Bar: Score + Streak -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="4dp"
-            android:background="@color/ink">
-
-            <TextView
-                android:id="@+id/textViewScore"
-                style="@style/BodyText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/score_label_zero"
-                tools:text="Poeng: 0" />
-
-            <TextView
-                android:id="@+id/textViewLeaderboard"
-                style="@style/BodyText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                tools:text="🏆 Runde 1/10"
-                tools:visibility="visible" />
-
-            <TextView
-                android:id="@+id/textViewSongYear"
-                style="@style/BodyTextBold"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:textColor="@color/amber_accent"
-                android:textSize="28sp"
-                android:textStyle="bold"
-                android:visibility="gone"
-                tools:text="2017"
-                tools:visibility="visible" />
-        </LinearLayout>
-
-        <!-- Toggle Overlay Button (top-right) — text-based, no external drawable needed -->
+        <!-- Toggle Overlay Button (top-right) — text-based -->
         <TextView
             android:id="@+id/buttonToggleVideo"
             android:layout_width="wrap_content"
@@ -143,7 +99,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:text="@string/loading_video"
                 tools:text="Shape of You" />
 
             <TextView
@@ -152,8 +107,37 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:paddingBottom="8dp"
+                android:paddingBottom="4dp"
                 tools:text="Ed Sheeran" />
+
+            <!-- Score + Streak (single-player) / Leaderboard (multiplayer) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:paddingBottom="4dp">
+
+                <TextView
+                    android:id="@+id/textViewScore"
+                    style="@style/BodyText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="@string/score_label_zero"
+                    tools:text="Poeng: 0" />
+
+                <TextView
+                    android:id="@+id/textViewLeaderboard"
+                    style="@style/BodyText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:visibility="gone"
+                    tools:text="🏆 Runde 1/10"
+                    tools:visibility="visible" />
+            </LinearLayout>
 
             <!-- Progress (loading) -->
             <ProgressBar
@@ -164,7 +148,7 @@
                 android:layout_gravity="center"
                 android:visibility="gone" />
 
-            <!-- Guess Input Row -->
+            <!-- Guess Input Row (single-player) -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
