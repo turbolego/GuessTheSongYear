@@ -14,7 +14,7 @@ import kotlin.random.Random
 object YearRandomizer {
 
     private const val MIN_YEAR = 1920
-    private const val MAX_YEAR = 2024
+    private const val MAX_YEAR = 2025
 
     /**
      * Picks a random year weighted toward modern decades.
@@ -32,13 +32,30 @@ object YearRandomizer {
             rand < 0.46f  -> Random.nextInt(1989 - 1980 + 1) + 1980  // 10% — 1980s
             rand < 0.58f  -> Random.nextInt(1999 - 1990 + 1) + 1990  // 12% — 1990s
             rand < 0.76f  -> Random.nextInt(2009 - 2000 + 1) + 2000  // 18% — 2000s
-            else          -> Random.nextInt(MAX_YEAR - 2010 + 1) + 2010  // 24% — 2010s–2024
+            else          -> Random.nextInt(MAX_YEAR - 2010 + 1) + 2010  // 24% — 2010s–2025
         }
     }
 
     /**
+     * Same weighting, but constrained to [availableYears] (years present
+     * in the video asset file). Falls back to the unrestricted pick if
+     * the selected year isn't in the list.
+     */
+    fun prioritizeModernYears(availableYears: List<Int>): Int {
+        if (availableYears.isEmpty()) return 2000
+        // Pick via the standard weighting
+        val year = prioritizeModernYears()
+        if (year in availableYears) return year
+        // Closest available year
+        return closest(year, availableYears)
+    }
+
+    private fun closest(target: Int, years: List<Int>): Int {
+        return years.minByOrNull { kotlin.math.abs(it - target) } ?: 2000
+    }
+
+    /**
      * Uniform random year between MIN_YEAR and MAX_YEAR (inclusive).
-     * Used as the "uniform" alternative, matching the Spotify option.
      */
     fun uniform(): Int = Random.nextInt(MAX_YEAR - MIN_YEAR + 1) + MIN_YEAR
 }

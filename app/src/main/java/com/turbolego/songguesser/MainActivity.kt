@@ -130,6 +130,10 @@ class MainActivity : AppCompatActivity() {
                     .show()
                 true
             }
+            R.id.action_settings -> {
+                navigateToSettings()
+                true
+            }
             R.id.action_about -> {
                 showAbout()
                 true
@@ -211,6 +215,16 @@ class MainActivity : AppCompatActivity() {
             .addToBackStack("debug")
             .commit()
         supportActionBar?.title = getString(R.string.menu_debug)
+    }
+
+    private fun navigateToSettings() {
+        val frag = SettingsFragment()
+        currentFragment = frag
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack("settings")
+            .commit()
+        supportActionBar?.title = getString(R.string.menu_settings)
     }
 
     private fun confirmResetScore() {

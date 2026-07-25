@@ -162,8 +162,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
 
         isHosting = false
         val frag = VideoPlayerFragment.newInstance(
-            playerNames = allPlayers,
-            showReveal = true
+            playerNames = allPlayers
         )
         requireActivity().supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, frag)

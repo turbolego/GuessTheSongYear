@@ -1,0 +1,97 @@
+# GuessTheSongYear — Music Video Database
+# Format: videoId,year,title
+# Lines starting with # are ignored. Blank lines are ignored.
+# One videoId per line.
+
+# -- Fallback videos from original codebase --
+dQw4w9WgXcQ,1987,Rick Astley - Never Gonna Give You Up
+ZbZSe6N_BXs,2013,Pharrell Williams - Happy
+1w7OgIMMRc4,1987,Guns N' Roses - Sweet Child O' Mine
+lp-EO5I60KA,2014,Ed Sheeran - Thinking Out Loud
+9bZkp7q19f0,2012,PSY - Gangnam Style
+YQHsXMglC9A,2015,Adele - Hello
+OPf0YbXqDm0,2014,Mark Ronson - Uptown Funk
+2Vv-BfVoq4g,2017,Ed Sheeran - Perfect
+fLexgOxsZu0,2010,Bruno Mars - The Lazy Song
+kJQP7kiw5Fk,2017,Luis Fonsi - Despacito
+YlUKcNNmywk,1999,RHCP - Californication
+QcIy9NiNbmo,2014,Taylor Swift - Bad Blood
+fRh_vgS2dFE,2015,Justin Bieber - Sorry
+JGwWNGJdvx8,2017,Ed Sheeran - Shape of You
+RgKAFK5djSk,2015,Wiz Khalifa - See You Again
+papuvlVeZg8,2016,Clean Bandit - Rockabye
+kffacxfA7G4,2010,Justin Bieber - Baby
+k2qgadSvNyU,2017,Dua Lipa - New Rules
+Oextk-If8HQ,2004,Keane - Somewhere Only We Know
+UceaB4D0jpo,1990,AC/DC - Thunderstruck
+v2AC41dglnM,1990,AC/DC - Thunderstruck
+hT_nvWreIhg,2013,OneRepublic - Counting Stars
+fKopy74weus,2017,Imagine Dragons - Thunder
+ZRtdQ81jPUQ,2023,YOASOBI - Idol
+T3E9Wjbq44E,2011,Gym Class Heroes - Stereo Hearts
+K0ibBPhiaG0,2017,Ed Sheeran - Castle On The Hill
+w2Ov5jzm3j8,2019,Lil Nas X - Old Town Road
+450p7goxZqg,2013,John Legend - All of Me
+ptSjNWnzpjg,2008,Taylor Swift - Fearless
+SMs0GnYze34,2016,DJ Snake - Let Me Love You
+NmCFY1oYDeM,2016,John Legend - Love Me Now
+bESGLojNYSo,2008,Lady Gaga - Poker Face
+Pkh8UtuejGw,2019,Shawn Mendes - Señorita
+Rt0spqQtMKg,2006,SNL - D*** in a Box
+YykjpeuMNEk,2015,Coldplay - Hymn For The Weekend
+
+# -- Additional popular music videos (years 1960-2024) --
+# Pop classics
+dT6J0ADUnKA,2013,Robin Thicke - Blurred Lines
+CevxZvSJLk8,2017,Katy Perry - Swish Swish
+8UVNT4wvIGY,2011,LMFAO - Sexy And I Know It
+YVkUvmDQ3HY,2014,Meghan Trainor - All About That Bass
+5qm8PH4xAss,2012,Macklemore - Thrift Shop
+z2RHN9E0b6M,2011,Foster The People - Pumped Up Kicks
+eQWGvHlhTM0,2015,OMI - Cheerleader
+OPf0YbXqDm0,2014,Mark Ronson - Uptown Funk
+y6Sxv-sUYtM,2016,Justin Timberlake - Can't Stop The Feeling
+0KSOMA3QBU0,2012,Gotye - Somebody That I Used To Know
+nhPaVI7jL5Q,2016,Mariah Carey - All I Want For Christmas Is You
+60ItHLz5WEA,2011,Adele - Someone Like You
+hT_nvWreIhg,2013,OneRepublic - Counting Stars
+
+# Rock / Alternative
+wDjeMv-6fxI,1995,Blur - Country House
+vdB-8eLEW8g,1991,Nirvana - Smells Like Teen Spirit
+hTWKbfoikeg,1994,Nirvana - About A Girl
+XUUDg2YBoGE,1992,Alice In Chains - Would?
+EQ33Z4SnGGk,1992,Stone Temple Pilots - Plush
+P6nLwC0WFoA,1994,Green Day - Basket Case
+IhQP7iTzIkY,1991,Red Hot Chili Peppers - Under The Bridge
+pAgnJDJN4nA,2017,Portugal The Man - Feel It Still
+
+# Hip-Hop / R&B
+RgKAFK5djSk,2015,Wiz Khalifa - See You Again
+7PCkvCPvDXk,2015,Mark Ronson - Uptown Funk
+5qm8PH4xAss,2012,Macklemore - Thrift Shop
+7lnFszEz6tI,2011,Rihanna - We Found Love
+1G4isv_Fylg,2012,fun. - We Are Young
+XbGs1KpDkXU,2014,Jason Derulo - Want To Want Me
+JGwWNGJdvx8,2017,Ed Sheeran - Shape Of You
+fRh_vgS2dFE,2015,Justin Bieber - Sorry
+
+# Dance / Electronic
+mmo3HFa2vjg,2013,Avicii - Wake Me Up
+4eKxPmUMS_Y,2011,LMFAO - Party Rock Anthem
+YJVmu6yttiw,2015,Ellie Goulding - Love Me Like You Do
+tKyGy065SoY,2014,Tiësto - Wasted
+LtL9g3HrKXk,2019,Lil Nas X - Panini
+
+# -- Classical / Pop from earlier decades --
+# 1960s
+8z2kLhTfBfI,1964,Louis Armstrong - Hello Dolly
+Ci2YqBqOIBk,1965,The Beatles - Yesterday
+NJHbunr6ScI,1965,The Sound Of Music - Do Re Mi
+
+# 1970s
+74Qyeid03e0,1977,Fleetwood Mac - Dreams
+CX45aYw8Lek,1977,Queen - We Will Rock You
+kHueq0h4KkQ,1978,The Knack - My Sharona
+hFDcoX7s6rE,1973,Pink Floyd - Money
+9h30BxN9RiA,1975,Queen - Bohemian Rhapsody

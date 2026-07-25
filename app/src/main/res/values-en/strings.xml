@@ -167,4 +167,19 @@
 
     <!-- Player guess edit text hint -->
     <string name="year_hint">Year</string>
+
+    <!-- Settings -->
+    <string name="menu_settings">Settings</string>
+    <string name="settings_video_source">Video Source</string>
+    <string name="settings_use_default_list">Use default list</string>
+    <string name="settings_use_custom_list">Use your own list</string>
+    <string name="settings_custom_list_label">Paste YouTube URLs or video IDs</string>
+    <string name="settings_custom_list_hint">One per line, or comma-separated:\n\nhttps://youtu.be/dQw4w9WgXcQ\nhttps://www.youtube.com/watch?v=9bZkp7q19f0\nfJ9rUzIMcZQ</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_no_ids_found">⚠ No valid video IDs found</string>
+    <string name="settings_ids_found">✅ %d videos found!</string>
+    <string name="settings_saved_custom">✅ Saved! Using your list (%d videos)</string>
+    <string name="settings_saved_default">✅ Using default list</string>
+    <string name="settings_error_empty_list">Please paste video URLs or IDs</string>
+    <string name="settings_error_no_ids">No valid YouTube videos found in the text</string>
 </resources>

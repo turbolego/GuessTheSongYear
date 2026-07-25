@@ -10,56 +10,18 @@
     android:background="@color/ink">
 
     <!-- ════════════════════════════════════════════════════════════════ -->
-    <!-- VIDEO AREA — fixed height so game controls are always visible  -->
+    <!-- VIDEO AREA — YouTube IFrame Player API (official, Play Store)  -->
     <!-- ════════════════════════════════════════════════════════════════ -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="200dp"
         android:background="@android:color/black">
 
-        <!-- ExoPlayer Video Surface -->
-        <androidx.media3.ui.PlayerView
-            android:id="@+id/playerView"
+        <com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
+            android:id="@+id/youtubePlayerView"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            app:use_controller="true"
-            app:show_buffering="when_playing"
-            app:resize_mode="fit" />
+            android:layout_height="match_parent" />
 
-        <!-- Dark overlay (for overlay toggle / audio-only mode) -->
-        <View
-            android:id="@+id/videoOverlay"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@color/ink"
-            android:visibility="gone"
-            tools:visibility="visible" />
-
-        <!-- Overlay label: shows video info when video is hidden -->
-        <TextView
-            android:id="@+id/textViewOverlayLabel"
-            style="@style/SongTitleLarge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:gravity="center"
-            android:text="@string/overlay_audio_only"
-            android:visibility="gone"
-            tools:visibility="visible" />
-
-        <!-- Toggle Overlay Button (top-right) — text-based -->
-        <TextView
-            android:id="@+id/buttonToggleVideo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="12dp"
-            android:layout_marginTop="12dp"
-            android:background="@color/surface"
-            android:padding="8dp"
-            android:textColor="@color/body_text"
-            android:textSize="12sp"
-            android:layout_gravity="top|end"
-            android:text="@string/overlay_audio_only" />
     </FrameLayout>
 
     <!-- ════════════════════════════════════════════════════════════════ -->
@@ -239,19 +201,24 @@
                 tools:text="Venter på vert..."
                 tools:visibility="visible" />
 
-            <!-- Multiplayer: Player Guess RecyclerView -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/recyclerViewPlayers"
+            <!-- Multiplayer: Player Guess RecyclerView (wrapped for scroll limit) -->
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical"
-                android:visibility="gone"
-                android:nestedScrollingEnabled="false"
-                tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                tools:listItem="@layout/item_player_guess"
-                tools:visibility="visible"
-                tools:itemCount="3" />
+                android:layout_marginTop="8dp">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/recyclerViewPlayers"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    android:nestedScrollingEnabled="false"
+                    tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                    tools:listItem="@layout/item_player_guess"
+                    tools:visibility="visible"
+                    tools:itemCount="4" />
+            </FrameLayout>
         </LinearLayout>
     </ScrollView>
 

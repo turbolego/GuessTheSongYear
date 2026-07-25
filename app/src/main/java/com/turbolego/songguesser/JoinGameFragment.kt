@@ -252,8 +252,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         val activity = requireActivity() as? MainActivity
         if (activity != null) {
             val frag = VideoPlayerFragment.newInstance(
-                playerNames = allPlayerNames,
-                showReveal = false
+                playerNames = allPlayerNames
             )
             activity.supportFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, frag)

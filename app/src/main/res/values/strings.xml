@@ -167,4 +167,19 @@
 
     <!-- Player guess edit text hint -->
     <string name="year_hint">År</string>
+
+    <!-- Settings -->
+    <string name="menu_settings">Innstillinger</string>
+    <string name="settings_video_source">Videokilde</string>
+    <string name="settings_use_default_list">Bruk standard liste</string>
+    <string name="settings_use_custom_list">Bruk din egen liste</string>
+    <string name="settings_custom_list_label">Lim inn YouTube-URLer eller video-IDer</string>
+    <string name="settings_custom_list_hint">Én per linje, eller kommaseparert:\n\nhttps://youtu.be/dQw4w9WgXcQ\nhttps://www.youtube.com/watch?v=9bZkp7q19f0\nfJ9rUzIMcZQ</string>
+    <string name="settings_save">Lagre</string>
+    <string name="settings_no_ids_found">⚠ Ingen gyldige video-IDer funnet</string>
+    <string name="settings_ids_found">✅ %d videoer funnet!</string>
+    <string name="settings_saved_custom">✅ Lagret! Bruker din liste (%d videoer)</string>
+    <string name="settings_saved_default">✅ Bruker standard liste</string>
+    <string name="settings_error_empty_list">Vennligst lim inn video-URLer eller IDer</string>
+    <string name="settings_error_no_ids">Ingen gyldige YouTube-videoer funnet i teksten</string>
 </resources>
