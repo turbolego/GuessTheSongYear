@@ -25,9 +25,10 @@
     </FrameLayout>
 
     <!-- ════════════════════════════════════════════════════════════════ -->
-    <!-- CONTROLS AREA — scrollable when content exceeds screen          -->
+    <!-- CONTROLS AREA — NestedScrollView supports nested scrolling with  -->
+    <!-- RecyclerView so the player list can scroll properly              -->
     <!-- ════════════════════════════════════════════════════════════════ -->
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
@@ -201,25 +202,19 @@
                 tools:text="Venter på vert..."
                 tools:visibility="visible" />
 
-            <!-- Multiplayer: Player Guess RecyclerView (wrapped for scroll limit) -->
-            <FrameLayout
+            <!-- Multiplayer: Player Guess list (inside NestedScrollView) -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerViewPlayers"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp">
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/recyclerViewPlayers"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:visibility="gone"
-                    android:nestedScrollingEnabled="false"
-                    tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                    tools:listItem="@layout/item_player_guess"
-                    tools:visibility="visible"
-                    tools:itemCount="4" />
-            </FrameLayout>
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:nestedScrollingEnabled="true"
+                tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                tools:listItem="@layout/item_player_guess"
+                tools:visibility="visible"
+                tools:itemCount="4" />
         </LinearLayout>
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>

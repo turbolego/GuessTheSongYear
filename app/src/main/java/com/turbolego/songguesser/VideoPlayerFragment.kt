@@ -54,8 +54,8 @@ class VideoPlayerFragment : Fragment() {
 
     // Multiplayer
     private var isMultiplayer = false
-    private var playerNames: List<String> = emptyList()
-    private var multiplayerAdapter: MultiplayerGuessAdapter? = null
+    var playerNames: List<String> = emptyList() // internal for JoinGameFragment callback
+    @JvmField var multiplayerAdapter: MultiplayerGuessAdapter? = null
     private var isNetworkClient = false
 
     // ── Factory ────────────────────────────────────────────────────────────
@@ -119,8 +119,11 @@ class VideoPlayerFragment : Fragment() {
         if (isMultiplayer) setupMultiplayerUI()
         if (!isMultiplayer) updateScoreDisplay()
 
-        // Start the game
-        loadNextVideo()
+        // Don't load a video if this is a network client — the host sends the video
+        if (!isNetworkClient) {
+            // Start the game
+            loadNextVideo()
+        }
     }
 
     override fun onResume() {
@@ -206,6 +209,11 @@ class VideoPlayerFragment : Fragment() {
 
         // Reset multiplayer adapter for new round
         multiplayerAdapter?.resetForNewRound()
+
+        // If we're hosting a network game, broadcast the video to clients
+        if (isMultiplayer && HostGameService.instance != null) {
+            HostGameService.instance?.broadcastVideo(videoId, year, "???")
+        }
 
         // Queue video in YouTube Player (official IFrame API)
         if (youtubePlayer != null) {
@@ -393,7 +401,7 @@ class VideoPlayerFragment : Fragment() {
         }
     }
 
-    private fun revealMultiplayerAnswers() {
+    fun revealMultiplayerAnswers() {
         val values = multiplayerAdapter?.getCurrentPickerValues() ?: return
         val videoYear = currentVideoYear
         for ((index, playerName) in playerNames.withIndex()) {

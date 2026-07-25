@@ -211,11 +211,14 @@ class HostGameFragment : Fragment(), GameNetworkListener {
     override fun onHostingStarted(sessionId: String, hostName: String) {
         this.sessionId = sessionId
         this.hostName = hostName
-        binding.textViewHostStatus.text = getString(R.string.host_active)
-        binding.textViewTransportHint.text = getString(R.string.host_item, hostName)
-        binding.progressBarHost.visibility = View.GONE
-        binding.textViewPlayersLabel.visibility = View.VISIBLE
-        binding.recyclerViewJoinedPlayers.visibility = View.VISIBLE
+        requireActivity().runOnUiThread {
+            if (_binding == null) return@runOnUiThread
+            binding.textViewHostStatus.text = getString(R.string.host_active)
+            binding.textViewTransportHint.text = getString(R.string.host_item, hostName)
+            binding.progressBarHost.visibility = View.GONE
+            binding.textViewPlayersLabel.visibility = View.VISIBLE
+            binding.recyclerViewJoinedPlayers.visibility = View.VISIBLE
+        }
     }
 
     override fun onHostingStatus(status: String) {
@@ -237,37 +240,46 @@ class HostGameFragment : Fragment(), GameNetworkListener {
     }
 
     override fun onServiceRegistered(serviceName: String) {
-        binding.textViewHostStatus.text = getString(R.string.host_visible_as, serviceName)
+        requireActivity().runOnUiThread {
+            if (_binding == null) return@runOnUiThread
+            binding.textViewHostStatus.text = getString(R.string.host_visible_as, serviceName)
+        }
     }
 
     override fun onJoinedSession(session: GameSession) { /* n/a for host */ }
 
     override fun onPlayerJoined(playerName: String, clientIp: String) {
-        if (!joinedPlayers.contains(playerName)) {
-            joinedPlayers.add(playerName)
-            playerAdapter?.notifyItemInserted(joinedPlayers.size - 1)
-            if (joinedPlayers.size >= 1) {
-                binding.buttonStartGame.visibility = View.VISIBLE
-                binding.buttonStartGame.isEnabled = true
-                binding.textViewHostStatus.text =
-                    getString(R.string.host_players_joined, joinedPlayers.size)
-            } else {
-                binding.textViewHostStatus.text = getString(R.string.host_waiting)
+        requireActivity().runOnUiThread {
+            if (_binding == null) return@runOnUiThread
+            if (!joinedPlayers.contains(playerName)) {
+                joinedPlayers.add(playerName)
+                playerAdapter?.notifyItemInserted(joinedPlayers.size - 1)
+                if (joinedPlayers.size >= 1) {
+                    binding.buttonStartGame.visibility = View.VISIBLE
+                    binding.buttonStartGame.isEnabled = true
+                    binding.textViewHostStatus.text =
+                        getString(R.string.host_players_joined, joinedPlayers.size)
+                } else {
+                    binding.textViewHostStatus.text = getString(R.string.host_waiting)
+                }
             }
         }
     }
 
     override fun onPlayerDisconnected(playerName: String) {
-        val index = joinedPlayers.indexOf(playerName)
-        if (index >= 0) {
-            joinedPlayers.removeAt(index)
-            playerAdapter?.notifyItemRemoved(index)
-            if (joinedPlayers.isEmpty()) {
-                binding.buttonStartGame.visibility = View.GONE
-                binding.textViewHostStatus.text = getString(R.string.host_waiting)
-            } else {
-                binding.textViewHostStatus.text =
-                    getString(R.string.host_players_joined, joinedPlayers.size)
+        requireActivity().runOnUiThread {
+            if (_binding == null) return@runOnUiThread
+            val index = joinedPlayers.indexOf(playerName)
+            if (index >= 0) {
+                joinedPlayers.removeAt(index)
+                playerAdapter?.notifyItemRemoved(index)
+                if (joinedPlayers.isEmpty()) {
+                    binding.buttonStartGame.visibility = View.GONE
+                    binding.textViewHostStatus.text = getString(R.string.host_waiting)
+                } else {
+                    binding.textViewHostStatus.text =
+                        getString(R.string.host_players_joined, joinedPlayers.size)
+                }
             }
         }
     }

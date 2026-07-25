@@ -243,29 +243,70 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
     override fun onJoinedSession(session: GameSession) {
         hasJoined = true
-        binding.progressBarJoin.visibility = View.GONE
-        binding.textViewConnectionStatus.text = getString(R.string.join_connected, session.hostName)
-        Toast.makeText(requireContext(), R.string.join_joined, Toast.LENGTH_SHORT).show()
+        requireActivity().runOnUiThread {
+            if (_binding == null) return@runOnUiThread
+            binding.progressBarJoin.visibility = View.GONE
+            binding.textViewConnectionStatus.text = getString(R.string.join_connected, session.hostName)
+            Toast.makeText(requireContext(), R.string.join_joined, Toast.LENGTH_SHORT).show()
 
-        val allPlayerNames = session.players.keys.toList()
+            val allPlayerNames = session.players.keys.toList()
 
-        val activity = requireActivity() as? MainActivity
-        if (activity != null) {
-            val frag = VideoPlayerFragment.newInstance(
-                playerNames = allPlayerNames
-            )
-            activity.supportFragmentManager.beginTransaction()
-                .replace(R.id.fragment_container, frag)
-                .addToBackStack("network_game")
-                .commit()
+            val activity = requireActivity() as? MainActivity
+            if (activity != null) {
+                val frag = VideoPlayerFragment.newInstance(
+                    playerNames = allPlayerNames
+                )
+                // Mark as network client — won't auto-load videos, waits for host
+                frag.setAsNetworkClient()
+                activity.supportFragmentManager.beginTransaction()
+                    .replace(R.id.fragment_container, frag)
+                    .addToBackStack("network_game")
+                    .commit()
+            }
         }
     }
 
     override fun onPlayerJoined(playerName: String, clientIp: String) { /* n/a */ }
     override fun onPlayerDisconnected(playerName: String) { /* n/a */ }
-    override fun onVideoReceived(videoId: String, year: Int, title: String) { /* n/a */ }
-    override fun onRevealReceived() { /* n/a */ }
-    override fun onRevealResultReceived(results: List<RevealResult>) { /* n/a */ }
+    override fun onVideoReceived(videoId: String, year: Int, title: String) {
+        // Forward to the active VideoPlayerFragment (setAsNetworkClient was called on create)
+        VideoPlayerFragment.activeFragment?.receiveVideoFromHost(videoId, year)
+        VideoPlayerFragment.activeFragment?.setAsNetworkClient()
+    }
+    override fun onRevealReceived() {
+        // Forward reveal to the active VideoPlayerFragment
+        // The host has locked all guesses — clients show the reveal UI
+        requireActivity().runOnUiThread {
+            VideoPlayerFragment.activeFragment?.let { frag ->
+                if (frag.isAdded && !frag.isDetached) {
+                    // Show the reveal button so answers can be shown
+                    frag.revealMultiplayerAnswers()
+                }
+            }
+        }
+    }
+    override fun onRevealResultReceived(results: List<RevealResult>) {
+        // Forward results to the active VideoPlayerFragment for display
+        requireActivity().runOnUiThread {
+            VideoPlayerFragment.activeFragment?.let { frag ->
+                if (frag.isAdded && !frag.isDetached) {
+                    // Update each player's result text from the server's calculation
+                    for (result in results) {
+                        val index = frag.playerNames.indexOf(result.playerName)
+                        if (index >= 0) {
+                            frag.multiplayerAdapter?.setPlayerResult(
+                                index,
+                                result.playerName + ": " +
+                                    getString(R.string.score_earned, result.pointsEarned)
+                            )
+                        }
+                    }
+                    frag.multiplayerAdapter?.revealAnswers()
+                    frag.revealMultiplayerAnswers()
+                }
+            }
+        }
+    }
     override fun onTurnReceived(playerName: String) { /* n/a */ }
     override fun onGuessReceived(playerName: String, guess: Int, correctYear: Int, score: Int) { /* n/a */ }
 
