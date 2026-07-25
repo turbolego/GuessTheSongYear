@@ -18,8 +18,8 @@ android {
         applicationId = "com.turbolego.songguesser"
         minSdk = 24
         targetSdk = 37
-        versionCode = 63
-        versionName = "1.0.63"
+        versionCode = 64
+        versionName = "1.0.64"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
