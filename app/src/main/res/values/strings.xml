@@ -104,6 +104,9 @@
     <string name="error_generic">Noe gikk galt. Prøv igjen.</string>
     <string name="error_no_videos_left">Ingen flere videoer tilgjengelig. Prøv å oppdatere.</string>
     <string name="error_no_youtube">YouTube-appen er ikke installert.</string>
+    <string name="video_not_available">Videoen er ikke tilgjengelig</string>
+    <string name="video_embed_blocked">⚠ Videoen kan ikke spilles av i appen. Trykk \"Åpne i YouTube\" for å se den, eller gå til neste.</string>
+    <string name="error_open_youtube">Kunne ikke åpne YouTube</string>
 
     <!-- Dialog buttons -->
     <string name="cancel">Avbryt</string>

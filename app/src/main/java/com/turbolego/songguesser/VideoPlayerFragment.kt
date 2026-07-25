@@ -1,5 +1,7 @@
 package com.turbolego.songguesser
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -7,12 +9,15 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.webkit.WebView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 import com.turbolego.songguesser.databinding.FragmentVideoPlayerBinding
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +48,9 @@ class VideoPlayerFragment : Fragment() {
     private var playedVideoIds = mutableSetOf<String>()
     private var duplicateSkipCount = 0
     private var currentVideoId: String? = null
+
+    // Permanently blocked videos (embed-disabled / error 150/152)
+    private var blockedVideoIds = mutableSetOf<String>()
 
     // Countdown / timer
     private var countdownJob: Job? = null
@@ -94,17 +102,64 @@ class VideoPlayerFragment : Fragment() {
 
         // Set up YouTube Player (official IFrame API — fully Play Store compliant)
         val youTubePlayerView: YouTubePlayerView = binding.youtubePlayerView
+        youTubePlayerView.enableAutomaticInitialization = false
         lifecycle.addObserver(youTubePlayerView)
 
-        youTubePlayerView.addYouTubePlayerListener(object : AbstractYouTubePlayerListener() {
-            override fun onReady(ytPlayer: YouTubePlayer) {
-                youtubePlayer = ytPlayer
-                if (pendingVideoId != null) {
-                    ytPlayer.cueVideo(pendingVideoId!!, 0f)
-                    pendingVideoId = null
+        val origin = "https://${requireContext().packageName}"
+
+        // Apply referrer headers to the internal WebView — YouTube now requires
+        // a valid Referer header and Referrer-Policy for embedded playback.
+        // Without this, error 152-4 occurs for ALL videos in newer WebView builds.
+        findWebView(youTubePlayerView)?.settings?.apply {
+            userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+        }
+
+        val playerOptions = IFramePlayerOptions.Builder()
+            .controls(1)
+            .origin(origin)
+            .rel(0)
+            .build()
+
+        youTubePlayerView.initialize(
+            object : AbstractYouTubePlayerListener() {
+                override fun onReady(ytPlayer: YouTubePlayer) {
+                    youtubePlayer = ytPlayer
+                    if (pendingVideoId != null) {
+                        ytPlayer.cueVideo(pendingVideoId!!, 0f)
+                        pendingVideoId = null
+                    }
                 }
-            }
-        })
+
+                override fun onError(ytPlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
+                    // IFrame API errors:
+                    //   REQUEST_MISSING_HTTP_REFERER — YouTube requires a valid referrer
+                    //   VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER — embed blocked by content owner
+                    //   VIDEO_NOT_FOUND — deleted/privated
+                    //
+                    // Block the failed video and offer a YouTube Intent fallback.
+                    val videoId = currentVideoId
+                    when (error) {
+                        PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER,
+                        PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> {
+                            if (videoId != null) {
+                                blockedVideoIds.add(videoId)
+                                showYouTubeFallback(videoId)
+                            }
+                        }
+                        else -> {
+                            // REQUEST_MISSING_HTTP_REFERER, UNKNOWN, HTML5_PLAYER, etc.
+                            if (videoId != null && videoId !in blockedVideoIds) {
+                                blockedVideoIds.add(videoId)
+                                showYouTubeFallback(videoId)
+                            }
+                        }
+                    }
+                }
+            },
+            true,
+            playerOptions
+        )
 
         // Parse arguments
         arguments?.let { args ->
@@ -170,23 +225,26 @@ class VideoPlayerFragment : Fragment() {
     }
 
     private fun pickNextEntry(): VideoProvider.VideoEntry? {
-        // Try to get a weighted random entry
+        // Try to get a weighted random entry, skipping blocked (embed-disabled) and played IDs
         val entry = VideoProvider.getRandomVideoEntryWeighted()
-        if (entry != null && entry.id !in playedVideoIds) {
+        if (entry != null && entry.id !in playedVideoIds && entry.id !in blockedVideoIds) {
             return entry
         }
 
-        // If weighted pick was a duplicate, try more picks
+        // If weighted pick was a duplicate or blocked, try more picks
         repeat(50) {
             val alt = VideoProvider.getRandomVideoEntryWeighted()
-            if (alt != null && alt.id !in playedVideoIds) {
+            if (alt != null && alt.id !in playedVideoIds && alt.id !in blockedVideoIds) {
                 return alt
             }
         }
 
-        // Fallback: pick any from the full list
+        // Fallback: try any that isn't blocked
         val any = VideoProvider.getRandomVideoEntryWeighted()
-        return any
+        if (any != null && any.id !in blockedVideoIds) return any
+
+        // All videos blocked — offer fallback
+        return null
     }
 
     private fun playVideo(videoId: String, year: Int = 0) {
@@ -252,6 +310,12 @@ class VideoPlayerFragment : Fragment() {
 
         // Reveal answers (multiplayer)
         binding.buttonRevealAnswers.setOnClickListener { revealMultiplayerAnswers() }
+
+        // YouTube fallback — open in YouTube app/browser when IFrame fails
+        binding.buttonYoutubeFallback.setOnClickListener {
+            val videoId = currentVideoId ?: return@setOnClickListener
+            openInYoutubeApp(videoId)
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -437,5 +501,72 @@ class VideoPlayerFragment : Fragment() {
         binding.textViewArtist.text = getString(R.string.year_unknown)
         binding.progressBar.visibility = View.GONE
         beginCountdown()
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // YOUTUBE FALLBACK — when IFrame API can't play a video (embed disabled)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    fun showYouTubeFallback(videoId: String) {
+        // Cancel timers — the video failed to play
+        countdownJob?.cancel()
+        guessJob?.cancel()
+
+        requireActivity().runOnUiThread {
+            binding.editTextGuess.isEnabled = false
+            binding.buttonGuess.isEnabled = false
+            binding.textViewSongTitle.text = "???"
+            binding.textViewArtist.text = "⚠ " + getString(R.string.video_not_available)
+            binding.textViewCountdown.visibility = View.GONE
+            binding.progressBar.visibility = View.GONE
+            binding.textViewFeedback.text = getString(R.string.video_embed_blocked)
+            binding.textViewFeedback.visibility = View.VISIBLE
+            binding.buttonYoutubeFallback.visibility = View.VISIBLE
+            binding.textViewBlockedInfo.visibility = View.VISIBLE
+
+            // Keep the guess cycle working — user can watch on YouTube then guess
+            beginGuessTimer()
+        }
+    }
+
+    private fun openInYoutubeApp(videoId: String) {
+        try {
+            // Try official YouTube app first
+            val intent = Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://www.youtube.com/watch?v=$videoId")).apply {
+                setPackage("com.google.android.youtube")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            // YouTube app not installed — fall back to browser
+            try {
+                val intent = Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://www.youtube.com/watch?v=$videoId")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+            } catch (e2: Exception) {
+                Toast.makeText(requireContext(),
+                    getString(R.string.error_open_youtube), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Recursively find the WebView inside the YouTubePlayerView hierarchy.
+     * The library's view tree is: YouTubePlayerView → SixteenByNineFrameLayout →
+     * LegacyYouTubePlayerView → WebView. We need the WebView to set HTTP headers
+     * (Referer, Referrer-Policy) required by YouTube's new embed security policy.
+     */
+    private fun findWebView(view: View): WebView? {
+        if (view is WebView) return view
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                val found = findWebView(view.getChildAt(i))
+                if (found != null) return found
+            }
+        }
+        return null
     }
 }

@@ -20,7 +20,8 @@
         <com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
             android:id="@+id/youtubePlayerView"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent"
+            app:enableAutomaticInitialization="false" />
 
     </FrameLayout>
 
@@ -165,7 +166,7 @@
                 tools:text="💡 Tiår: 2010-tallet"
                 tools:visibility="visible" />
 
-            <!-- Next Video / Reveal Answers buttons -->
+            <!-- Next Video / Reveal Answers / YouTube fallback buttons -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -188,7 +189,28 @@
                     android:layout_height="wrap_content"
                     android:text="@string/reveal_answers"
                     android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/buttonYoutubeFallback"
+                    style="@style/SecondaryButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▶ Åpne i YouTube"
+                    android:visibility="gone"
+                    android:textColor="@color/ink"
+                    android:backgroundTint="@color/amber_accent" />
             </LinearLayout>
+
+            <!-- Blocked-video info -->
+            <TextView
+                android:id="@+id/textViewBlockedInfo"
+                style="@style/MutedText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:paddingTop="4dp"
+                android:visibility="gone"
+                tools:text="⚠ Videoen kan ikke spilles av i appen. Trykk 'Åpne i YouTube' for å se den." />
 
             <!-- Network Client Label -->
             <TextView
