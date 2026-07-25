@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GuessTheSongYear</string>
+
+    <!-- Menu -->
+    <string name="menu_difficulty">Difficulty</string>
+    <string name="menu_about">About</string>
+    <string name="menu_debug">🔧 Debug</string>
+    <string name="menu_reset_score">Reset score</string>
+    <string name="menu_clear_duplicates">Reset duplicate counter</string>
+    <string name="menu_local_multiplayer">Local multiplayer (same device)</string>
+    <string name="menu_host_game">Host game (WiFi)</string>
+    <string name="menu_join_game">Join game (WiFi)</string>
+    <string name="menu_language">Language</string>
+    <string name="lang_norwegian">Norsk</string>
+    <string name="lang_english">English</string>
+
+    <!-- Difficulty -->
+    <string name="difficulty_easy">Easy</string>
+    <string name="difficulty_medium">Medium</string>
+    <string name="difficulty_hard">Hard</string>
+    <string name="difficulty_label">Difficulty: %s</string>
+
+    <!-- Video player -->
+    <string name="video_countdown">%d</string>
+    <string name="next_video">Next video</string>
+    <string name="next_player">Next player</string>
+    <string name="guess_hint">Guess the year (1960–2025)</string>
+    <string name="edit_guess_hint">Year</string>
+    <string name="submit_guess">Guess!</string>
+    <string name="reveal_answers">Reveal answers</string>
+    <string name="year_unknown">Year not available</string>
+    <string name="hint_decade">Decade: %d\'s</string>
+    <string name="hint_views">Views: %d</string>
+
+    <!-- Scoring -->
+    <string name="score_label">Score: %d</string>
+    <string name="score_label_zero">Score: 0</string>
+    <string name="streak_label">Streak: %d</string>
+    <string name="correct_exact">Perfect! Exact year! 🎯</string>
+    <string name="correct_very_close">Very close! Off by %d years. 🔥</string>
+    <string name="correct_close">Pretty close! Off by %d years. 👍</string>
+    <string name="correct_ok">Off by %d years. You got some points.</string>
+    <string name="wrong">Wrong! Correct year was %d. 😢</string>
+    <string name="score_earned">+%d points</string>
+    <string name="round_label">Round %d/%d</string>
+
+    <!-- Local multiplayer -->
+    <string name="game_session">Game</string>
+    <string name="current_player">Player: %s</string>
+    <string name="turn_of">%s\'s turn</string>
+    <string name="add_player">Add player</string>
+    <string name="remove_player">Remove player</string>
+    <string name="player_name_hint">Player name</string>
+    <string name="player_name_required">Enter a player name</string>
+    <string name="start_game">Start game</string>
+    <string name="players_label">Players:</string>
+    <string name="min_players">At least 2 players required</string>
+    <string name="leaderboard_title">🏆 Leaderboard 🏆</string>
+    <string name="leaderboard_item">%s — %d points</string>
+    <string name="multiplayer_setup_title">Local multiplayer</string>
+    <string name="player_already_exists">That player already exists</string>
+    <string name="player_list_placeholder">No players yet. Add at least 2.</string>
+
+    <!-- Network multiplayer -->
+    <string name="host_game_title">Host game over WiFi</string>
+    <string name="join_game_title">Join WiFi game</string>
+    <string name="host_started">Waiting for players…</string>
+    <string name="host_scanning">Looking for games…</string>
+    <string name="no_games_found">No games found. Ask your friends to host a game.</string>
+    <string name="game_full">Game is full</string>
+    <string name="connected_to_host">Connected to host</string>
+    <string name="waiting_for_host">Waiting for video from host…</string>
+    <string name="transport_hint">Choose transport method for hosting</string>
+    <string name="discovered_hosts_label">Discovered game hosts:</string>
+
+    <!-- Host game -->
+    <string name="host_name_default">Host</string>
+    <string name="host_via_wifi">Host via WiFi</string>
+    <string name="host_via_bluetooth">Host via Bluetooth</string>
+    <string name="copy_ip">Copy IP</string>
+    <string name="scan_to_join">Scan to join</string>
+    <string name="qr_code_desc">QR code to join game</string>
+    <string name="host_enter_name">Enter your name</string>
+    <string name="host_starting_server">Starting server…</string>
+    <string name="host_starting_hint">Starting host…</string>
+    <string name="host_bt_permission">Bluetooth permission required</string>
+    <string name="host_starting_bt">Starting Bluetooth…</string>
+    <string name="host_starting_bt_hint">Bluetooth host starting…</string>
+    <string name="host_wait_for_start">Wait for host to start</string>
+    <string name="host_min_players">Need at least 2 players total</string>
+    <string name="host_copied">Copied: %s</string>
+    <string name="host_active">Host active</string>
+    <string name="host_item">Host: %s</string>
+    <string name="host_share_ip">Share this IP address with other players</string>
+    <string name="host_visible_as">Visible as «%s»</string>
+    <string name="host_players_joined">%d player(s) joined</string>
+    <string name="host_waiting">Waiting for players…</string>
+    <string name="host_error">Error: %s</string>
+
+    <!-- Errors -->
+    <string name="error_loading_video">Could not load video. Try another one.</string>
+    <string name="error_invalid_year">Please enter a valid year (1960–2025).</string>
+    <string name="error_generic">Something went wrong. Try again.</string>
+    <string name="error_no_videos_left">No more videos available. Try refreshing.</string>
+    <string name="error_no_youtube">YouTube app is not installed.</string>
+
+    <!-- Dialog buttons -->
+    <string name="cancel">Cancel</string>
+    <string name="reset">Reset</string>
+    <string name="ok">OK</string>
+    <string name="close">Close</string>
+
+    <!-- Watch on YouTube -->
+    <string name="watch_on_youtube">Open in YouTube</string>
+    <string name="video_visited">You watched the video on YouTube</string>
+
+    <!-- NewPipe + ExoPlayer -->
+    <string name="loading_video">Loading video…</string>
+
+    <!-- Overlay -->
+    <string name="overlay_audio_only">🎵 Audio only</string>
+    <string name="btn_hide_video">Hide video</string>
+    <string name="btn_show_video">Show video</string>
+    <string name="btn_reveal_answers">Reveal answers</string>
+    <string name="hosting_status_wifi_start">Starting WiFi host…</string>
+
+    <!-- Multiplayer setup -->
+    <string name="remove_player_title">Remove player</string>
+
+    <!-- Join game -->
+    <string name="join_player_default">Player</string>
+    <string name="join_enter_name">Enter your name</string>
+    <string name="join_scanning_lan">Scanning for games on LAN…</string>
+    <string name="join_scan_qr_prompt">Scan host\'s QR code</string>
+    <string name="join_qr_read_error">Could not read QR code</string>
+    <string name="join_invalid_qr_ip">Invalid IP in QR code: %s</string>
+    <string name="join_enter_ip_hint">Enter host\'s IP, scan QR, or wait for LAN scan</string>
+    <string name="join_invalid_ip">Invalid IP address</string>
+    <string name="join_connecting">Connecting to %s…</string>
+    <string name="join_connected">Connected to %s!</string>
+    <string name="join_joined">Joined the game!</string>
+    <string name="join_game_ended">Game ended</string>
+    <string name="join_error">Error: %s</string>
+    <string name="join_player_count">%d player(s)</string>
+    <string name="join_host_ip_hint">Host\'s IP (e.g. 192.168.1.42:8888)</string>
+    <string name="join_scan_qr_desc">Scan QR code</string>
+    <string name="join_scan_button">Search for games</string>
+    <string name="join_connect_button">Connect</string>
+
+    <!-- About -->
+    <string name="about_title">PlaylistThe</string>
+    <string name="about_message">A music quiz where you guess the release year of songs. Multiplayer for parties!</string>
+
+    <!-- Reset score -->
+    <string name="reset_score_title">Reset score?</string>
+    <string name="reset_score_message">This will delete all stats:\n\n%s</string>
+    <string name="clear_duplicates_title">Clear duplicate tracking?</string>
+    <string name="clear_duplicates_message">%d duplicates skipped this session.\nReset the counter.</string>
+
+    <!-- Final results -->
+    <string name="results_title">Results</string>
+    <string name="game_finished">🏆 Game finished!</string>
+    <string name="winner_label">Winner: %s 🎉</string>
+    <string name="play_again">Play again</string>
+    <string name="exit">Exit</string>
+
+    <!-- Player guess edit text hint -->
+    <string name="year_hint">Year</string>
+</resources>

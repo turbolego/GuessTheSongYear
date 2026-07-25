@@ -46,7 +46,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:hint="Vertens IP (f.eks. 192.168.1.42:8888)"
+        android:hint="@string/join_host_ip_hint"
         app:layout_constraintEnd_toStartOf="@+id/buttonScanQr"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textInputLayoutName">
@@ -70,7 +70,7 @@
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         android:text=""
-        android:contentDescription="Skann QR-kode"
+        android:contentDescription="@string/join_scan_qr_desc"
         app:icon="@android:drawable/ic_menu_camera"
         app:iconSize="22dp"
         app:layout_constraintEnd_toEndOf="parent"
@@ -83,7 +83,7 @@
         android:layout_width="0dp"
         android:layout_height="48dp"
         android:layout_marginTop="8dp"
-        android:text="Søk etter spill"
+        android:text="@string/join_scan_button"
         app:layout_constraintEnd_toStartOf="@+id/buttonConnect"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textInputLayoutHostIp" />
@@ -94,7 +94,7 @@
         android:layout_height="48dp"
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
-        android:text="Koble til"
+        android:text="@string/join_connect_button"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/buttonRefreshScan"
         app:layout_constraintTop_toBottomOf="@+id/textInputLayoutHostIp" />

@@ -1,5 +1,6 @@
 package com.turbolego.songguesser
 
+import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
 import android.os.Bundle
@@ -28,6 +29,14 @@ class MainActivity : AppCompatActivity() {
     val videoPlayerFragment: VideoPlayerFragment?
         get() = currentFragment as? VideoPlayerFragment
 
+    // ── Locale support ──────────────────────────────────────────────────────
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.attachBaseContext(newBase))
+    }
+
+    // ── Lifecycle ───────────────────────────────────────────────────────────
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -47,12 +56,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         setSupportActionBar(binding.toolbar)
-        supportActionBar?.title = "GuessTheSongYear"
+        supportActionBar?.title = getString(R.string.app_name)
 
         if (savedInstanceState == null) {
             navigateToSinglePlayer()
         }
     }
+
+    // ── Menu ────────────────────────────────────────────────────────────────
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
@@ -60,6 +71,11 @@ class MainActivity : AppCompatActivity() {
         menu.findItem(R.id.action_difficulty_easy)?.isChecked = currentDifficulty == Difficulty.EASY
         menu.findItem(R.id.action_difficulty_medium)?.isChecked = currentDifficulty == Difficulty.MEDIUM
         menu.findItem(R.id.action_difficulty_hard)?.isChecked = currentDifficulty == Difficulty.HARD
+
+        // Check active language
+        val currentLang = LocaleHelper.getLanguage(this)
+        menu.findItem(R.id.action_language_nb)?.isChecked = currentLang == "nb"
+        menu.findItem(R.id.action_language_en)?.isChecked = currentLang == "en"
 
         return true
     }
@@ -76,6 +92,14 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.action_difficulty_hard -> {
                 setDifficulty(Difficulty.HARD, item)
+                true
+            }
+            R.id.action_language_nb -> {
+                LocaleHelper.setLanguage(this, "nb")
+                true
+            }
+            R.id.action_language_en -> {
+                LocaleHelper.setLanguage(this, "en")
                 true
             }
             R.id.action_local_multiplayer -> {
@@ -97,12 +121,12 @@ class MainActivity : AppCompatActivity() {
             R.id.action_clear_duplicates -> {
                 val count = videoPlayerFragment?.getDuplicateCount() ?: 0
                 AlertDialog.Builder(this)
-                    .setTitle("Fjern duplikat-sporing?")
-                    .setMessage("$count duplikater hoppet over denne økten.\nNullstill telleren.")
-                    .setPositiveButton("Nullstill") { _, _ ->
+                    .setTitle(R.string.clear_duplicates_title)
+                    .setMessage(getString(R.string.clear_duplicates_message, count))
+                    .setPositiveButton(R.string.reset) { _, _ ->
                         videoPlayerFragment?.resetDuplicateTracker()
                     }
-                    .setNegativeButton("Avbryt", null)
+                    .setNegativeButton(R.string.cancel, null)
                     .show()
                 true
             }
@@ -122,7 +146,7 @@ class MainActivity : AppCompatActivity() {
         currentDifficulty = difficulty
         menuItem.isChecked = true
         videoPlayerFragment?.setDifficulty(difficulty)
-        binding.toolbar.subtitle = "Vanskelighet: ${difficulty.label}"
+        binding.toolbar.subtitle = getString(R.string.difficulty_label, getString(difficulty.labelResId))
     }
 
     // ── Navigation ──────────────────────────────────────────────────────────
@@ -134,7 +158,7 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, frag)
             .commit()
-        supportActionBar?.title = "GuessTheSongYear"
+        supportActionBar?.title = getString(R.string.app_name)
     }
 
     private fun navigateToLocalMultiplayer() {
@@ -144,7 +168,7 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, frag)
             .addToBackStack("multiplayer_setup")
             .commit()
-        supportActionBar?.title = "Flerspiller"
+        supportActionBar?.title = getString(R.string.multiplayer_setup_title)
     }
 
     fun startMultiplayerGame(players: List<MultiPlayerManager.Player>) {
@@ -156,7 +180,7 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, frag)
             .addToBackStack("multiplayer_game")
             .commit()
-        supportActionBar?.title = "Flerspiller"
+        supportActionBar?.title = getString(R.string.multiplayer_setup_title)
     }
 
     private fun navigateToHostGame() {
@@ -166,7 +190,7 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, frag)
             .addToBackStack("host_game")
             .commit()
-        supportActionBar?.title = "Host spill"
+        supportActionBar?.title = getString(R.string.host_game_title)
     }
 
     private fun navigateToJoinGame() {
@@ -176,7 +200,7 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, frag)
             .addToBackStack("join_game")
             .commit()
-        supportActionBar?.title = "Bli med i spill"
+        supportActionBar?.title = getString(R.string.join_game_title)
     }
 
     private fun navigateToDebug() {
@@ -186,18 +210,18 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, frag)
             .addToBackStack("debug")
             .commit()
-        supportActionBar?.title = "🔧 Debug"
+        supportActionBar?.title = getString(R.string.menu_debug)
     }
 
     private fun confirmResetScore() {
         val stats = videoPlayerFragment?.getStats() ?: ""
         AlertDialog.Builder(this)
-            .setTitle("Nullstill poeng?")
-            .setMessage("Dette sletter all statistikk:\n\n$stats")
-            .setPositiveButton("Nullstill") { _: DialogInterface, _: Int ->
+            .setTitle(R.string.reset_score_title)
+            .setMessage(getString(R.string.reset_score_message, stats))
+            .setPositiveButton(R.string.reset) { _: DialogInterface, _: Int ->
                 videoPlayerFragment?.resetScore()
             }
-            .setNegativeButton("Avbryt", null)
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
@@ -212,9 +236,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAbout() {
         AlertDialog.Builder(this)
-            .setTitle("PlaylistThe")
-            .setMessage("En musikk-quiz der du gjetter begjæret til sanger. Multiplayer for flerparty!")
-            .setPositiveButton("OK", null)
+            .setTitle(R.string.about_title)
+            .setMessage(R.string.about_message)
+            .setPositiveButton(R.string.ok, null)
             .show()
     }
 

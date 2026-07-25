@@ -41,7 +41,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
     private var _binding: FragmentHostGameBinding? = null
     private val binding get() = _binding!!
 
-    private var hostName: String = "Vert"
+    private var hostName: String = ""
     private val joinedPlayers = mutableListOf<String>()
     private var playerAdapter: JoinedPlayerAdapter? = null
     private var isHosting = false
@@ -93,7 +93,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
     private fun startHostingViaWifi() {
         hostName = binding.editTextHostName.text.toString().trim()
         if (hostName.isBlank()) {
-            Toast.makeText(requireContext(), "Skriv inn navnet ditt", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.host_enter_name, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -102,7 +102,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
         isHosting = true
 
         binding.textViewHostStatus.visibility = View.VISIBLE
-        binding.textViewHostStatus.text = "Starter server..."
+        binding.textViewHostStatus.text = getString(R.string.host_starting_server)
         binding.progressBarHost.visibility = View.VISIBLE
 
         HostGameService.pendingListener = this
@@ -111,13 +111,13 @@ class HostGameFragment : Fragment(), GameNetworkListener {
         binding.buttonHostWifi.isEnabled = false
         binding.buttonHostBluetooth.isEnabled = false
         binding.editTextHostName.isEnabled = false
-        binding.textViewTransportHint.text = "Vertskap starter..."
+        binding.textViewTransportHint.text = getString(R.string.host_starting_hint)
     }
 
     private fun startHostingViaBluetooth() {
         hostName = binding.editTextHostName.text.toString().trim()
         if (hostName.isBlank()) {
-            Toast.makeText(requireContext(), "Skriv inn navnet ditt", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.host_enter_name, Toast.LENGTH_SHORT).show()
             return
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -126,7 +126,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
                     Manifest.permission.BLUETOOTH_ADVERTISE
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                Toast.makeText(requireContext(), "Bluetooth-tillatelse kreves", Toast.LENGTH_LONG).show()
+                Toast.makeText(requireContext(), R.string.host_bt_permission, Toast.LENGTH_LONG).show()
                 return
             }
         }
@@ -136,7 +136,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
         isHosting = true
 
         binding.textViewHostStatus.visibility = View.VISIBLE
-        binding.textViewHostStatus.text = "Starter Bluetooth..."
+        binding.textViewHostStatus.text = getString(R.string.host_starting_bt)
         binding.progressBarHost.visibility = View.VISIBLE
 
         HostGameService.pendingListener = this
@@ -145,18 +145,18 @@ class HostGameFragment : Fragment(), GameNetworkListener {
         binding.buttonHostWifi.isEnabled = false
         binding.buttonHostBluetooth.isEnabled = false
         binding.editTextHostName.isEnabled = false
-        binding.textViewTransportHint.text = "Bluetooth-vertskap starter..."
+        binding.textViewTransportHint.text = getString(R.string.host_starting_bt_hint)
     }
 
     private fun startGame() {
         if (sessionId == null) {
-            Toast.makeText(requireContext(), "Vent på at vertskap starter", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.host_wait_for_start, Toast.LENGTH_SHORT).show()
             return
         }
         val allPlayers = mutableListOf(hostName)
         allPlayers.addAll(joinedPlayers)
         if (allPlayers.size < 2) {
-            Toast.makeText(requireContext(), "Trenger minst 2 spillere totalt", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.host_min_players, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -175,7 +175,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
         val ip = hostIp ?: return
         val clipboard = requireContext().getSystemService(ClipboardManager::class.java)
         clipboard.setPrimaryClip(ClipData.newPlainText("Host IP", ip))
-        Toast.makeText(requireContext(), "Kopiert: $ip", Toast.LENGTH_SHORT).show()
+        Toast.makeText(requireContext(), getString(R.string.host_copied, ip), Toast.LENGTH_SHORT).show()
     }
 
     /** Generate a QR code bitmap from text using ZXing. Runs on background thread. */
@@ -212,8 +212,8 @@ class HostGameFragment : Fragment(), GameNetworkListener {
     override fun onHostingStarted(sessionId: String, hostName: String) {
         this.sessionId = sessionId
         this.hostName = hostName
-        binding.textViewHostStatus.text = "Vertskap aktivt"
-        binding.textViewTransportHint.text = "Host: $hostName"
+        binding.textViewHostStatus.text = getString(R.string.host_active)
+        binding.textViewTransportHint.text = getString(R.string.host_item, hostName)
         binding.progressBarHost.visibility = View.GONE
         binding.textViewPlayersLabel.visibility = View.VISIBLE
         binding.recyclerViewJoinedPlayers.visibility = View.VISIBLE
@@ -230,7 +230,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
                 binding.textViewHostIp.text = hostIp
                 binding.textViewHostIp.visibility = View.VISIBLE
                 binding.buttonCopyIp.visibility = View.VISIBLE
-                binding.textViewTransportHint.text = "Del denne IP-adressen med andre spillere"
+                binding.textViewTransportHint.text = getString(R.string.host_share_ip)
                 // Generate QR code
                 showQrCode(match.value)
             }
@@ -238,7 +238,7 @@ class HostGameFragment : Fragment(), GameNetworkListener {
     }
 
     override fun onServiceRegistered(serviceName: String) {
-        binding.textViewHostStatus.text = "Synlig som «$serviceName»"
+        binding.textViewHostStatus.text = getString(R.string.host_visible_as, serviceName)
     }
 
     override fun onJoinedSession(session: GameSession) { /* n/a for host */ }
@@ -250,9 +250,10 @@ class HostGameFragment : Fragment(), GameNetworkListener {
             if (joinedPlayers.size >= 1) {
                 binding.buttonStartGame.visibility = View.VISIBLE
                 binding.buttonStartGame.isEnabled = true
-                binding.textViewHostStatus.text = "${joinedPlayers.size} spiller(e) har blitt med"
+                binding.textViewHostStatus.text =
+                    getString(R.string.host_players_joined, joinedPlayers.size)
             } else {
-                binding.textViewHostStatus.text = "Venter på spillere..."
+                binding.textViewHostStatus.text = getString(R.string.host_waiting)
             }
         }
     }
@@ -264,9 +265,10 @@ class HostGameFragment : Fragment(), GameNetworkListener {
             playerAdapter?.notifyItemRemoved(index)
             if (joinedPlayers.isEmpty()) {
                 binding.buttonStartGame.visibility = View.GONE
-                binding.textViewHostStatus.text = "Venter på spillere..."
+                binding.textViewHostStatus.text = getString(R.string.host_waiting)
             } else {
-                binding.textViewHostStatus.text = "${joinedPlayers.size} spiller(e) har blitt med"
+                binding.textViewHostStatus.text =
+                    getString(R.string.host_players_joined, joinedPlayers.size)
             }
         }
     }
@@ -280,8 +282,8 @@ class HostGameFragment : Fragment(), GameNetworkListener {
 
     override fun onNetworkError(error: String) {
         requireActivity().runOnUiThread {
-            Toast.makeText(requireContext(), "Feil: $error", Toast.LENGTH_LONG).show()
-            binding.textViewHostStatus.text = "Feil: $error"
+            Toast.makeText(requireContext(), getString(R.string.host_error, error), Toast.LENGTH_LONG).show()
+            binding.textViewHostStatus.text = getString(R.string.host_error, error)
             binding.progressBarHost.visibility = View.GONE
         }
     }

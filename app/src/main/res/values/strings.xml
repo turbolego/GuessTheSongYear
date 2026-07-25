@@ -11,11 +11,15 @@
     <string name="menu_local_multiplayer">Lokal flerspiller (samme enhet)</string>
     <string name="menu_host_game">Host spill (WiFi)</string>
     <string name="menu_join_game">Bli med i spill (WiFi)</string>
+    <string name="menu_language">Språk</string>
+    <string name="lang_norwegian">Norsk</string>
+    <string name="lang_english">English</string>
 
     <!-- Difficulty -->
     <string name="difficulty_easy">Lett</string>
     <string name="difficulty_medium">Medium</string>
     <string name="difficulty_hard">Vanskelig</string>
+    <string name="difficulty_label">Vanskelighet: %s</string>
 
     <!-- Video player -->
     <string name="video_countdown">%d</string>
@@ -54,12 +58,15 @@
     <string name="min_players">Minst 2 spillere</string>
     <string name="leaderboard_title">🏆 Ledertavle 🏆</string>
     <string name="leaderboard_item">%s — %d poeng</string>
+    <string name="multiplayer_setup_title">Lokal flerspiller</string>
+    <string name="player_already_exists">Denne spilleren finnes allerede</string>
+    <string name="player_list_placeholder">Ingen spillere ennå. Legg til minst 2.</string>
 
     <!-- Network multiplayer -->
     <string name="host_game_title">Host spill over WiFi</string>
     <string name="join_game_title">Bli med i WiFi-spill</string>
-    <string name="host_started">Venter på spillera…</string>
-    <string name="host_scanning">Søker erter spill…</string>
+    <string name="host_started">Venter på spillere…</string>
+    <string name="host_scanning">Søker etter spill…</string>
     <string name="no_games_found">Ingen spill funnet. Spør vennene dine om å hoste et spill.</string>
     <string name="game_full">Spillet er fullt</string>
     <string name="connected_to_host">Koblet til host</string>
@@ -67,12 +74,42 @@
     <string name="transport_hint">Velg transportmetode for vertskap</string>
     <string name="discovered_hosts_label">Oppdagede spillverter:</string>
 
+    <!-- Host game -->
+    <string name="host_name_default">Vert</string>
+    <string name="host_via_wifi">Host via WiFi</string>
+    <string name="host_via_bluetooth">Host via Bluetooth</string>
+    <string name="copy_ip">Kopier IP</string>
+    <string name="scan_to_join">Skann for å bli med</string>
+    <string name="qr_code_desc">QR-kode for å bli med</string>
+    <string name="host_enter_name">Skriv inn navnet ditt</string>
+    <string name="host_starting_server">Starter server…</string>
+    <string name="host_starting_hint">Vertskap starter…</string>
+    <string name="host_bt_permission">Bluetooth-tillatelse kreves</string>
+    <string name="host_starting_bt">Starter Bluetooth…</string>
+    <string name="host_starting_bt_hint">Bluetooth-vertskap starter…</string>
+    <string name="host_wait_for_start">Vent på at vertskap starter</string>
+    <string name="host_min_players">Trenger minst 2 spillere totalt</string>
+    <string name="host_copied">Kopiert: %s</string>
+    <string name="host_active">Vertskap aktivt</string>
+    <string name="host_item">Host: %s</string>
+    <string name="host_share_ip">Del denne IP-adressen med andre spillere</string>
+    <string name="host_visible_as">Synlig som «%s»</string>
+    <string name="host_players_joined">%d spiller(e) har blitt med</string>
+    <string name="host_waiting">Venter på spillere…</string>
+    <string name="host_error">Feil: %s</string>
+
     <!-- Errors -->
     <string name="error_loading_video">Kunne ikke laste video. Prøv en annen.</string>
     <string name="error_invalid_year">Vennligst skriv inn et gyldig år (1960–2025).</string>
     <string name="error_generic">Noe gikk galt. Prøv igjen.</string>
     <string name="error_no_videos_left">Ingen flere videoer tilgjengelig. Prøv å oppdatere.</string>
     <string name="error_no_youtube">YouTube-appen er ikke installert.</string>
+
+    <!-- Dialog buttons -->
+    <string name="cancel">Avbryt</string>
+    <string name="reset">Nullstill</string>
+    <string name="ok">OK</string>
+    <string name="close">Lukk</string>
 
     <!-- Watch on YouTube -->
     <string name="watch_on_youtube">Åpne i YouTube</string>
@@ -87,4 +124,47 @@
     <string name="btn_show_video">Vis video</string>
     <string name="btn_reveal_answers">Vis svar</string>
     <string name="hosting_status_wifi_start">Starter WiFi-vertskap...</string>
+
+    <!-- Multiplayer setup -->
+    <string name="remove_player_title">Fjern spiller</string>
+
+    <!-- Join game -->
+    <string name="join_player_default">Spiller</string>
+    <string name="join_enter_name">Skriv inn navnet ditt</string>
+    <string name="join_scanning_lan">Søker etter spill på LAN…</string>
+    <string name="join_scan_qr_prompt">Skann vertens QR-kode</string>
+    <string name="join_qr_read_error">Kunne ikke lese QR-kode</string>
+    <string name="join_invalid_qr_ip">Ugyldig IP i QR-kode: %s</string>
+    <string name="join_enter_ip_hint">Skriv inn vertens IP, skann QR, eller vent på LAN-scan</string>
+    <string name="join_invalid_ip">Ugyldig IP-adresse</string>
+    <string name="join_connecting">Kobler til %s…</string>
+    <string name="join_connected">Koblet til %s!</string>
+    <string name="join_joined">Ble med i spillet!</string>
+    <string name="join_game_ended">Spillet ble avsluttet</string>
+    <string name="join_error">Feil: %s</string>
+    <string name="join_player_count">%d spiller(e)</string>
+    <string name="join_host_ip_hint">Vertens IP (f.eks. 192.168.1.42:8888)</string>
+    <string name="join_scan_qr_desc">Skann QR-kode</string>
+    <string name="join_scan_button">Søk etter spill</string>
+    <string name="join_connect_button">Koble til</string>
+
+    <!-- About -->
+    <string name="about_title">PlaylistThe</string>
+    <string name="about_message">En musikk-quiz der du gjetter utgivelsesåret til sanger. Multiplayer for fest!</string>
+
+    <!-- Reset score -->
+    <string name="reset_score_title">Nullstill poeng?</string>
+    <string name="reset_score_message">Dette sletter all statistikk:\n\n%s</string>
+    <string name="clear_duplicates_title">Fjern duplikat-sporing?</string>
+    <string name="clear_duplicates_message">%d duplikater hoppet over denne økten.\nNullstill telleren.</string>
+
+    <!-- Final results -->
+    <string name="results_title">Resultater</string>
+    <string name="game_finished">🏆 Spillet er ferdig!</string>
+    <string name="winner_label">Vinner: %s 🎉</string>
+    <string name="play_again">Spill igjen</string>
+    <string name="exit">Avslutt</string>
+
+    <!-- Player guess edit text hint -->
+    <string name="year_hint">År</string>
 </resources>

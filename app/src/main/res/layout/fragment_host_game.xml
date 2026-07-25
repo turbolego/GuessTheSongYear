@@ -36,7 +36,7 @@
             android:layout_height="48dp"
             android:inputType="text"
             android:maxLines="1"
-            android:text="Vert"
+            android:text="@string/host_name_default"
             android:textColor="@color/body_text"
             android:textColorHint="@color/muted_text" />
     </com.google.android.material.textfield.TextInputLayout>

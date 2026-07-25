@@ -42,6 +42,22 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_language"
+        android:title="@string/menu_language"
+        app:showAsAction="never">
+        <menu>
+            <group android:id="@+id/group_language">
+                <item
+                    android:id="@+id/action_language_nb"
+                    android:title="@string/lang_norwegian" />
+                <item
+                    android:id="@+id/action_language_en"
+                    android:title="@string/lang_english" />
+            </group>
+        </menu>
+    </item>
+
+    <item
         android:id="@+id/action_clear_duplicates"
         android:title="@string/menu_clear_duplicates"
         app:showAsAction="never" />

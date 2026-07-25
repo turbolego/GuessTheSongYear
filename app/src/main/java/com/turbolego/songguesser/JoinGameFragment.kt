@@ -58,7 +58,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         super.onViewCreated(view, savedInstanceState)
         setupRecyclerView()
         setupListeners()
-        binding.editTextPlayerName.setText("Spiller")
+        binding.editTextPlayerName.setText(getString(R.string.join_player_default))
         binding.editTextHostIp.setText("")
     }
 
@@ -98,7 +98,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     private fun startLanScan() {
         playerName = binding.editTextPlayerName.text.toString().trim()
         if (playerName.isBlank()) {
-            Toast.makeText(requireContext(), "Skriv inn navnet ditt", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.join_enter_name, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -107,7 +107,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         hasJoined = false
 
         binding.textViewConnectionStatus.visibility = View.VISIBLE
-        binding.textViewConnectionStatus.text = "Søker etter spill på LAN..."
+        binding.textViewConnectionStatus.text = getString(R.string.join_scanning_lan)
         binding.progressBarJoin.visibility = View.VISIBLE
         binding.buttonRefreshScan.isEnabled = false
         binding.buttonScanQr.isEnabled = false
@@ -120,7 +120,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     private fun scanQrCode() {
         val integrator = IntentIntegrator(requireActivity())
         integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
-        integrator.setPrompt("Skann vertens QR-kode")
+        integrator.setPrompt(getString(R.string.join_scan_qr_prompt))
         integrator.setCameraId(0)
         integrator.setBeepEnabled(false)
         integrator.setBarcodeImageEnabled(false)
@@ -134,7 +134,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
             val scanned = result.contents.trim()
             parseAndConnect(scanned)
         } else {
-            Toast.makeText(requireContext(), "Kunne ikke lese QR-kode", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.join_qr_read_error, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -157,7 +157,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
         val ipPattern = Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")
         if (!ipPattern.matches(ip)) {
-            Toast.makeText(requireContext(), "Ugyldig IP i QR-kode: $ip", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), getString(R.string.join_invalid_qr_ip, ip), Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -170,13 +170,13 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     private fun connectToHost() {
         playerName = binding.editTextPlayerName.text.toString().trim()
         if (playerName.isBlank()) {
-            Toast.makeText(requireContext(), "Skriv inn navnet ditt", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.join_enter_name, Toast.LENGTH_SHORT).show()
             return
         }
 
         val ipText = binding.editTextHostIp.text.toString().trim()
         if (ipText.isBlank()) {
-            Toast.makeText(requireContext(), "Skriv inn vertens IP, skann QR, eller vent på LAN-scan", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.join_enter_ip_hint, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -193,7 +193,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
         val ipPattern = Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")
         if (!ipPattern.matches(ip)) {
-            Toast.makeText(requireContext(), "Ugyldig IP-adresse", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.join_invalid_ip, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -204,7 +204,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     private fun connectToHost(ip: String, port: Int) {
         playerName = binding.editTextPlayerName.text.toString().trim()
         if (playerName.isBlank()) {
-            Toast.makeText(requireContext(), "Skriv inn navnet ditt", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.join_enter_name, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -216,7 +216,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         binding.editTextHostIp.setText("$hostIp:$hostPort")
 
         binding.textViewConnectionStatus.visibility = View.VISIBLE
-        binding.textViewConnectionStatus.text = "Kobler til $hostIp:$hostPort..."
+        binding.textViewConnectionStatus.text = getString(R.string.join_connecting, "$hostIp:$hostPort")
         binding.progressBarJoin.visibility = View.VISIBLE
         binding.buttonConnect.isEnabled = false
         binding.buttonScanQr.isEnabled = false
@@ -244,8 +244,8 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     override fun onJoinedSession(session: GameSession) {
         hasJoined = true
         binding.progressBarJoin.visibility = View.GONE
-        binding.textViewConnectionStatus.text = "Koblet til ${session.hostName}!"
-        Toast.makeText(requireContext(), "Ble med i spillet!", Toast.LENGTH_SHORT).show()
+        binding.textViewConnectionStatus.text = getString(R.string.join_connected, session.hostName)
+        Toast.makeText(requireContext(), R.string.join_joined, Toast.LENGTH_SHORT).show()
 
         val allPlayerNames = session.players.keys.toList()
 
@@ -272,13 +272,13 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
     override fun onSessionEnded() {
         hasJoined = false
-        binding.textViewConnectionStatus.text = "Spillet ble avsluttet"
+        binding.textViewConnectionStatus.text = getString(R.string.join_game_ended)
     }
 
     override fun onNetworkError(error: String) {
         requireActivity().runOnUiThread {
-            Toast.makeText(requireContext(), "Feil: $error", Toast.LENGTH_LONG).show()
-            binding.textViewConnectionStatus.text = "Feil: $error"
+            Toast.makeText(requireContext(), getString(R.string.join_error, error), Toast.LENGTH_LONG).show()
+            binding.textViewConnectionStatus.text = getString(R.string.join_error, error)
             binding.progressBarJoin.visibility = View.GONE
             binding.buttonConnect.isEnabled = true
             binding.buttonScanQr.isEnabled = true
@@ -318,11 +318,15 @@ private class LanHostsAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val host = hosts[position]
+        val context = holder.itemView.context
         holder.text1.text = host.hostName
         holder.text1.setTextColor(
             ResourcesCompat.getColor(holder.itemView.resources, R.color.body_text, null)
         )
-        holder.text2.text = "${host.ip}:${host.port} · ${host.playerCount} spiller(e)"
+        holder.text2.text = context.getString(
+            R.string.join_player_count,
+            host.playerCount
+        ) + " · ${host.ip}:${host.port}"
         holder.text2.setTextColor(
             ResourcesCompat.getColor(holder.itemView.resources, R.color.muted_text, null)
         )

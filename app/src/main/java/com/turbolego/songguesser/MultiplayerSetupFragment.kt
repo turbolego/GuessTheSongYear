@@ -84,7 +84,7 @@ class MultiplayerSetupFragment : Fragment() {
                     refreshPlayerList()
                 }
             }
-            .setNegativeButton("Avbryt", null)
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
