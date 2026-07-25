@@ -334,6 +334,10 @@ class VideoPlayerFragment : Fragment() {
                 delay(1_000L)
             }
             binding.textViewCountdown.visibility = View.GONE
+
+            // Auto-play the cued video after the countdown finishes
+            youtubePlayer?.play()
+
             beginGuessTimer()
         }
     }
