@@ -86,6 +86,9 @@ dependencies {
     implementation(libs.media3.ui)
     implementation(libs.newpipe.extractor)
 
+    // InnerTube API search
+    implementation(libs.okhttp)
+
     // WiFi P2P for local multiplayer (using built-in Android APIs)
 
     // Parcelize is included in the kotlin-android plugin

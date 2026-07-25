@@ -265,7 +265,8 @@ class VideoPlayerFragment : Fragment() {
 
         if (isMultiplayer) setupMultiplayerUI()
         if (!isMultiplayer) updateScoreDisplay()
-        if (currentVideoList.isNotEmpty()) loadNextVideo()
+        // loadNextVideo() is now called from loadVideoPool() coroutine once
+        // the pool is populated (API search or fallback)
     }
 
     override fun onResume() {
@@ -289,23 +290,38 @@ class VideoPlayerFragment : Fragment() {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // VIDEO POOL
+    // VIDEO POOL — now fetched dynamically via InnerTube, just like Spotify
     // ═══════════════════════════════════════════════════════════════════════════
 
     private fun loadVideoPool() {
-        currentVideoList.clear()
-        currentVideoList.addAll(fallbackVideoList.map {
-            ApiVideo(it.id, it.year, 0L, "Music Video")
-        })
-        currentVideoList.shuffle()
-        if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Pool ready: ${currentVideoList.size} videos (shuffled)")
+        lifecycleScope.launch {
+            // Try InnerTube API first (searches by random weighted years)
+            val apiVideos = withContext(Dispatchers.IO) {
+                YouTubeSearchService.searchMultipleYears(yearCount = 3, perYear = 10)
+            }
+            if (apiVideos.isNotEmpty()) {
+                currentVideoList.clear()
+                currentVideoList.addAll(apiVideos)
+                if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Pool from API: ${currentVideoList.size} videos")
+            } else {
+                // Fall back to hardcoded list when network fails
+                if (ENABLE_DEBUG_LOGS) Log.d(TAG, "API returned empty, using fallback list")
+                currentVideoList.clear()
+                currentVideoList.addAll(fallbackVideoList.map {
+                    ApiVideo(it.id, it.year, 0L, "Music Video")
+                })
+            }
+            currentVideoList.shuffle()
+            Log.d(TAG, "Pool ready: ${currentVideoList.size} videos (shuffled)")
+
+            // Start first video only after pool is populated
+            if (currentVideoList.isNotEmpty()) loadNextVideo()
+        }
     }
 
     private fun pickCandidate(): ApiVideo? {
         val unscored = currentVideoList.filter { it.id !in playedVideoIds }
         if (unscored.isEmpty()) return null
-
-        // Pick a random video from the unscored pool so each round is unpredictable
         return unscored.random()
     }
 
