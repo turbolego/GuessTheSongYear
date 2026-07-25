@@ -68,6 +68,16 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_debug_youtube"
+        android:title="Debug: YouTube"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_debug_wifi"
+        android:title="Debug: WiFi"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_about"
         android:title="@string/menu_about"
         app:showAsAction="never" />

@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ink"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <!-- Header -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🔍 WiFi Multiplayer Debug"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/amber_accent"
+        android:paddingBottom="8dp" />
+
+    <!-- Status -->
+    <TextView
+        android:id="@+id/textWifiStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="6dp"
+        android:textSize="12sp"
+        android:textColor="@color/body_text"
+        android:background="@color/surface"
+        android:text="Trykk 'Scan LAN' eller start hosting..." />
+
+    <!-- Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:paddingVertical="8dp">
+
+        <Button
+            android:id="@+id/buttonScanWifi"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📡 Scan LAN"
+            android:textColor="@color/ink"
+            android:backgroundTint="@color/amber_accent"
+            android:paddingHorizontal="8dp" />
+
+        <Button
+            android:id="@+id/buttonHostTest"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginHorizontal="4dp"
+            android:text="🏗 Start Host"
+            android:textColor="@color/body_text"
+            android:backgroundTint="@color/surface"
+            android:paddingHorizontal="8dp" />
+
+        <Button
+            android:id="@+id/buttonStopWifi"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⏹ Stop"
+            android:textColor="@color/error_red"
+            android:backgroundTint="@color/surface"
+            android:paddingHorizontal="8dp" />
+    </LinearLayout>
+
+    <!-- Info panel -->
+    <TextView
+        android:id="@+id/textWifiInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="6dp"
+        android:textSize="11sp"
+        android:textColor="@color/muted_text"
+        android:background="@color/surface"
+        android:text="Ingen aktiv spilløkt"
+        android:visibility="visible" />
+
+    <!-- Player list -->
+    <TextView
+        android:id="@+id/textPlayersLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="8dp"
+        android:paddingBottom="2dp"
+        android:text="👥 Tilkoblede spillere:"
+        android:textSize="12sp"
+        android:textColor="@color/green_correct" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewWifiPlayers"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/surface" />
+
+    <!-- Log -->
+    <TextView
+        android:id="@+id/textWifiLogLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="4dp"
+        android:paddingBottom="2dp"
+        android:text="📋 Logg:"
+        android:textSize="12sp"
+        android:textColor="@color/green_correct" />
+
+    <ScrollView
+        android:id="@+id/scrollWifiLog"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:background="@color/surface">
+        <TextView
+            android:id="@+id/textWifiLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="8sp"
+            android:typeface="monospace"
+            android:textColor="@color/green_correct"
+            android:lineSpacingExtra="0dp"
+            android:padding="4dp"
+            android:text="(logger klar)" />
+    </ScrollView>
+
+</LinearLayout>

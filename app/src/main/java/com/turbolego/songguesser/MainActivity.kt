@@ -134,6 +134,14 @@ class MainActivity : AppCompatActivity() {
                 navigateToSettings()
                 true
             }
+            R.id.action_debug_youtube -> {
+                navigateToDebugYouTube()
+                true
+            }
+            R.id.action_debug_wifi -> {
+                navigateToDebugWifi()
+                true
+            }
             R.id.action_about -> {
                 showAbout()
                 true
@@ -225,6 +233,26 @@ class MainActivity : AppCompatActivity() {
             .addToBackStack("settings")
             .commit()
         supportActionBar?.title = getString(R.string.menu_settings)
+    }
+
+    private fun navigateToDebugYouTube() {
+        val frag = DebugYouTubeFragment()
+        currentFragment = frag
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack("debug_youtube")
+            .commit()
+        supportActionBar?.title = "Debug: YouTube"
+    }
+
+    private fun navigateToDebugWifi() {
+        val frag = DebugWifiFragment()
+        currentFragment = frag
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack("debug_wifi")
+            .commit()
+        supportActionBar?.title = "Debug: WiFi"
     }
 
     private fun confirmResetScore() {
