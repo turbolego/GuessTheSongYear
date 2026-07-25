@@ -132,23 +132,24 @@ class VideoPlayerFragment : Fragment() {
                 }
 
                 override fun onError(ytPlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
-                    // IFrame API errors:
-                    //   REQUEST_MISSING_HTTP_REFERER — YouTube requires a valid referrer
-                    //   VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER — embed blocked by content owner
-                    //   VIDEO_NOT_FOUND — deleted/privated
-                    //
-                    // Block the failed video and offer a YouTube Intent fallback.
                     val videoId = currentVideoId
+
                     when (error) {
-                        PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER,
-                        PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> {
-                            if (videoId != null) {
-                                blockedVideoIds.add(videoId)
-                                showYouTubeFallback(videoId)
-                            }
+                        // Embed-disabled: silently skip to next video — don't bother the user
+                        PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER -> {
+                            if (videoId != null) blockedVideoIds.add(videoId)
+                            loadNextVideo()
                         }
+
+                        // Video deleted/privated: skip silently
+                        PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> {
+                            if (videoId != null) blockedVideoIds.add(videoId)
+                            loadNextVideo()
+                        }
+
+                        // REQUEST_MISSING_HTTP_REFERER, UNKNOWN, HTML5_PLAYER — may be transient,
+                        // offer YouTube fallback so the user can watch externally
                         else -> {
-                            // REQUEST_MISSING_HTTP_REFERER, UNKNOWN, HTML5_PLAYER, etc.
                             if (videoId != null && videoId !in blockedVideoIds) {
                                 blockedVideoIds.add(videoId)
                                 showYouTubeFallback(videoId)
@@ -264,6 +265,8 @@ class VideoPlayerFragment : Fragment() {
         binding.textViewSongTitle.text = "???"
         binding.textViewArtist.text = "???"
         binding.textViewCountdown.visibility = View.GONE
+        binding.buttonYoutubeFallback.visibility = View.GONE
+        binding.textViewBlockedInfo.visibility = View.GONE
 
         // Reset multiplayer adapter for new round
         multiplayerAdapter?.resetForNewRound()
