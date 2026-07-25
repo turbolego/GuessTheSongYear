@@ -297,20 +297,16 @@ class VideoPlayerFragment : Fragment() {
         currentVideoList.addAll(fallbackVideoList.map {
             ApiVideo(it.id, it.year, 0L, "Music Video")
         })
-        if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Pool ready: ${currentVideoList.size} videos")
+        currentVideoList.shuffle()
+        if (ENABLE_DEBUG_LOGS) Log.d(TAG, "Pool ready: ${currentVideoList.size} videos (shuffled)")
     }
 
-    private fun pickCandidate(difficulty: Difficulty): ApiVideo? {
+    private fun pickCandidate(): ApiVideo? {
         val unscored = currentVideoList.filter { it.id !in playedVideoIds }
         if (unscored.isEmpty()) return null
 
-        return when (difficulty) {
-            Difficulty.EASY -> unscored.minByOrNull { it.year }
-            Difficulty.HARD -> unscored.maxByOrNull { it.year }
-            Difficulty.MEDIUM -> {
-                unscored.maxByOrNull { kotlin.math.abs(it.year - 2000) }
-            }
-        } ?: unscored.firstOrNull()
+        // Pick a random video from the unscored pool so each round is unpredictable
+        return unscored.random()
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -359,7 +355,7 @@ class VideoPlayerFragment : Fragment() {
         guessJob?.cancel()
         streamExtractJob?.cancel()
 
-        val candidate = pickCandidate(currentDifficulty) ?: run {
+        val candidate = pickCandidate() ?: run {
             playedVideoIds.clear()
             duplicateSkipCount = 0
             Toast.makeText(requireContext(), R.string.error_loading_video, Toast.LENGTH_SHORT).show()
