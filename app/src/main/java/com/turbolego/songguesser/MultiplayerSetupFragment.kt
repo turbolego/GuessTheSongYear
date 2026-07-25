@@ -17,6 +17,7 @@ class MultiplayerSetupFragment : Fragment() {
 
     private var _binding: FragmentMultiplayerSetupBinding? = null
     private val binding get() = _binding!!
+    private var playerAdapter: PlayerSetupAdapter? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -31,6 +32,18 @@ class MultiplayerSetupFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         MultiPlayerManager.clear()
+
+        playerAdapter = PlayerSetupAdapter(
+            players = MultiPlayerManager.allPlayers,
+            onRemoveClick = { name ->
+                MultiPlayerManager.removePlayer(name)
+                refreshPlayerList()
+            }
+        )
+        binding.recyclerViewPlayerList.apply {
+            adapter = playerAdapter
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+        }
 
         binding.buttonAddPlayer.setOnClickListener {
             showAddPlayerDialog()
@@ -77,29 +90,7 @@ class MultiplayerSetupFragment : Fragment() {
 
     private fun refreshPlayerList() {
         val players = MultiPlayerManager.allPlayers
-        val sb = StringBuilder()
-        players.forEachIndexed { i, p ->
-            sb.append("${i + 1}. ${p.name}\n")
-        }
-        if (players.isEmpty()) {
-            sb.append("Ingen spillere enda. Legg til minst 2.")
-        }
-        binding.textViewPlayerList.text = sb.toString()
+        playerAdapter?.submitList(players)
         binding.buttonStartGame.isEnabled = players.size >= 2
-
-        // Long-press on player list to remove
-        binding.textViewPlayerList.setOnLongClickListener {
-            if (players.isEmpty()) return@setOnLongClickListener true
-            val names = players.map { it.name }.toTypedArray()
-            AlertDialog.Builder(requireContext())
-                .setTitle("Fjern spiller")
-                .setItems(names) { _, which ->
-                    MultiPlayerManager.removePlayer(names[which])
-                    refreshPlayerList()
-                }
-                .setNegativeButton("Avbryt", null)
-                .show()
-            true
-        }
     }
 }

@@ -38,20 +38,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/buttonAddPlayer" />
 
-    <TextView
-        android:id="@+id/textViewPlayerList"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewPlayerList"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="4dp"
-        android:padding="12dp"
-        android:background="@drawable/input_background"
-        android:textColor="@color/body_text"
-        android:textSize="14sp"
+        android:overScrollMode="never"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textViewPlayersLabel"
         app:layout_constraintBottom_toTopOf="@+id/buttonStartGame"
-        tools:text="Spiller1 — 0 poeng\nSpiller2 — 0 poeng" />
+        tools:listitem="@layout/item_player_row" />
 
     <Button
         android:id="@+id/buttonStartGame"
