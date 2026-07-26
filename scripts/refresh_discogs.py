@@ -152,7 +152,7 @@ def write_assets(releases: list[dict]):
     os.makedirs(os.path.dirname(ASSET_FILE), exist_ok=True)
     with open(ASSET_FILE, "w", encoding="utf-8") as fh:
         for rel in releases:
-            fh.write(f"{rel['id']},{rel['name_key']},{rel['year']}\n")
+            fh.write(f"{rel['id']},{rel['year']},{rel['name_key']}\n")
 
 
 if __name__ == "__main__":

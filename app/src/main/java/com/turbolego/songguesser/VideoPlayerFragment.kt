@@ -42,6 +42,7 @@ class VideoPlayerFragment : Fragment() {
     private var score = 0
     private var streak = 0
     private var currentVideoYear: Int = 0
+    private var currentVideoTitle: String = ""
     private var hasGuessedThisRound = false
 
     // Duplicate tracking (same session)
@@ -218,11 +219,11 @@ class VideoPlayerFragment : Fragment() {
                 Toast.makeText(requireContext(), R.string.error_no_videos_left, Toast.LENGTH_SHORT).show()
                 return
             }
-            playVideo(retry.id, retry.year)
+            playVideo(retry.id, retry.year, retry.title)
             return
         }
 
-        playVideo(entry.id, entry.year)
+        playVideo(entry.id, entry.year, entry.title)
     }
 
     private fun pickNextEntry(): VideoProvider.VideoEntry? {
@@ -248,9 +249,10 @@ class VideoPlayerFragment : Fragment() {
         return null
     }
 
-    private fun playVideo(videoId: String, year: Int = 0) {
+    private fun playVideo(videoId: String, year: Int = 0, title: String = "") {
         currentVideoId = videoId
         currentVideoYear = year
+        currentVideoTitle = title
         playedVideoIds.add(videoId)
         hasGuessedThisRound = false
 
@@ -393,7 +395,7 @@ class VideoPlayerFragment : Fragment() {
     }
 
     private fun showAnswer(actualYear: Int, guessedYear: Int) {
-        binding.textViewSongTitle.text = "???"
+        binding.textViewSongTitle.text = currentVideoTitle.ifEmpty { "???" }
         binding.textViewArtist.text = actualYear.toString()
         binding.editTextGuess.isEnabled = false
         binding.buttonGuess.isEnabled = false
