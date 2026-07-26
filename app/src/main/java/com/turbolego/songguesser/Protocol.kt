@@ -68,11 +68,15 @@ object Protocol {
 
     const val TRANSPORT_WIFI = "wifi"
     const val TRANSPORT_BLUETOOTH = "bluetooth"
+    const val TRANSPORT_TLS = "tls"
 
     // ── Service constants ────────────────────────────────────────────────────
 
     /** Default TCP server port for Wi-Fi transport. */
     const val WIFI_SERVER_PORT = 8888
+
+    /** TLS-only port — host also listens here for secure clients. */
+    const val WIFI_TLS_SERVER_PORT = 8889
 
     /** Bluetooth RFCOMM service name (used for SDP record). */
     const val BT_SERVICE_NAME = "GuessTheSongYear"
@@ -86,6 +90,14 @@ object Protocol {
     const val CONNECT_TIMEOUT_MS = 15_000
     const val RECONNECT_DELAY_MS = 3_000L
     const val MAX_RECONNECT_ATTEMPTS = 3
+
+    // ── TLS / Secure channel ──────────────────────────────────────────────────
+
+    /** Message type: TLS HELLO (initiates secure upgrade over plain socket). */
+    const val MSG_TLS_HELLO = "TLS_HELLO"
+
+    /** JSON field: Base64-encoded SPKI hash for certificate pinning. */
+    const val FIELD_TLS_SPKI_HASH = "tlsSpkiHash"
 
     // ── JSON helpers ─────────────────────────────────────────────────────────
 
