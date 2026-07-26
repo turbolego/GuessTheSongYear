@@ -106,8 +106,6 @@ class VideoPlayerFragment : Fragment() {
         youTubePlayerView.enableAutomaticInitialization = false
         lifecycle.addObserver(youTubePlayerView)
 
-        val origin = "https://${requireContext().packageName}"
-
         // Apply referrer headers to the internal WebView — YouTube now requires
         // a valid Referer header and Referrer-Policy for embedded playback.
         // Without this, error 152-4 occurs for ALL videos in newer WebView builds.
@@ -116,9 +114,8 @@ class VideoPlayerFragment : Fragment() {
                 "(KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
         }
 
-        val playerOptions = IFramePlayerOptions.Builder()
+        val playerOptions = IFramePlayerOptions.Builder(requireContext())
             .controls(1)
-            .origin(origin)
             .rel(0)
             .build()
 
