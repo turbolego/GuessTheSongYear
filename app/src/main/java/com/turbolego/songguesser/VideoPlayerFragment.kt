@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -249,7 +250,7 @@ class VideoPlayerFragment : Fragment() {
         return null
     }
 
-    private fun playVideo(videoId: String, year: Int = 0, title: String = "") {
+    private fun playVideo(videoId: String, year: Int = 0, title: String = \"\") {
         currentVideoId = videoId
         currentVideoYear = year
         currentVideoTitle = title
@@ -269,6 +270,7 @@ class VideoPlayerFragment : Fragment() {
         binding.textViewCountdown.visibility = View.GONE
         binding.buttonYoutubeFallback.visibility = View.GONE
         binding.textViewBlockedInfo.visibility = View.GONE
+        binding.numberPickerYear.visibility = View.GONE
 
         // Reset multiplayer adapter for new round
         multiplayerAdapter?.resetForNewRound()
@@ -309,6 +311,11 @@ class VideoPlayerFragment : Fragment() {
             } else false
         }
         binding.buttonGuess.setOnClickListener { submitGuess() }
+
+        // Year picker — toggle NumberPicker visibility
+        binding.buttonYearPicker.setOnClickListener {
+            toggleYearPicker()
+        }
 
         // Next video button
         binding.buttonNextVideo.setOnClickListener { loadNextVideo() }
@@ -354,6 +361,7 @@ class VideoPlayerFragment : Fragment() {
             return
         }
         binding.editTextGuess.isEnabled = true
+        binding.buttonYearPicker.visibility = View.VISIBLE
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -432,6 +440,54 @@ class VideoPlayerFragment : Fragment() {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // YEAR PICKER (NumberPicker) — replaces EditText typing with a scroll wheel
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private var isYearPickerSetup = false
+
+    private fun setupYearPicker() {
+        if (isYearPickerSetup) return
+        isYearPickerSetup = true
+
+        binding.numberPickerYear.apply {
+            minValue = YEAR_MIN
+            maxValue = YEAR_MAX
+            value = YEAR_MAX // default to latest year
+            wrapSelectorWheel = false
+
+            setTextColor(android.graphics.Color.parseColor("#e6edf3"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+        }
+
+        binding.numberPickerYear.setOnValueChangedListener { _, _oldVal, newVal ->
+            binding.editTextGuess.setText(newVal.toString())
+        }
+    }
+
+    private fun toggleYearPicker() {
+        if (!isYearPickerSetup) setupYearPicker()
+
+        val isVisible = binding.numberPickerYear.visibility == View.VISIBLE
+        if (isVisible) {
+            // Hide picker, show edit text + guess button
+            binding.numberPickerYear.visibility = View.GONE
+            binding.editTextGuess.visibility = View.VISIBLE
+            binding.buttonGuess.visibility = View.VISIBLE
+        } else {
+            // Show picker, hide edit text + guess button
+            // Sync picker to current edit text value
+            val currentText = binding.editTextGuess.text.toString()
+            val currentYear = currentText.toIntOrNull()
+            if (currentYear != null && currentYear in YEAR_MIN..YEAR_MAX) {
+                binding.numberPickerYear.value = currentYear
+            }
+            binding.numberPickerYear.visibility = View.VISIBLE
+            binding.editTextGuess.visibility = View.GONE
+            binding.buttonGuess.visibility = View.VISIBLE // keep guess button
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // SCORING
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -465,6 +521,8 @@ class VideoPlayerFragment : Fragment() {
         binding.editTextGuess.visibility = View.GONE
         binding.buttonGuess.visibility = View.GONE
         binding.textViewScore.visibility = View.GONE
+        binding.buttonYearPicker.visibility = View.GONE
+        binding.numberPickerYear.visibility = View.GONE
 
         multiplayerAdapter = MultiplayerGuessAdapter(playerNames)
         binding.recyclerViewPlayers.apply {
