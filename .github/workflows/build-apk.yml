@@ -10,6 +10,7 @@ on:
 permissions:
   contents: read
   actions: read
+  security-events: read  # needed to read Dependabot alerts for status checks
 
 concurrency:
   group: build-${{ github.ref }}

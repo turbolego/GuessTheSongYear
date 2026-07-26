@@ -6,9 +6,17 @@ on:
     - cron: '0 3 * * 1'
   workflow_dispatch:  # Allow manual trigger
 
+# Workflow-level: least privilege
+permissions:
+  contents: read
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    # Job needs write for git push
+    permissions:
+      contents: write
+      id-token: none
     steps:
       - uses: actions/checkout@v4
 
