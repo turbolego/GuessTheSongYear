@@ -130,6 +130,11 @@ dependencies {
     // InnerTube API search
     implementation(libs.okhttp)
 
+    // Bouncy Castle for TLS certificate generation (SecureChannelManager)
+    implementation("org.bouncycastle:bcprov-jdk18on:1.84")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.84")
+    implementation("org.bouncycastle:bcutil-jdk18on:1.84")
+
     // WiFi P2P for local multiplayer (using built-in Android APIs)
 
     // Parcelize is included in the kotlin-android plugin

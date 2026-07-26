@@ -5,7 +5,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -250,7 +249,7 @@ class VideoPlayerFragment : Fragment() {
         return null
     }
 
-    private fun playVideo(videoId: String, year: Int = 0, title: String = \"\") {
+    private fun playVideo(videoId: String, year: Int = 0, title: String = "") {
         currentVideoId = videoId
         currentVideoYear = year
         currentVideoTitle = title
@@ -456,7 +455,7 @@ class VideoPlayerFragment : Fragment() {
             wrapSelectorWheel = false
 
             setTextColor(android.graphics.Color.parseColor("#e6edf3"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextSize(22f)
         }
 
         binding.numberPickerYear.setOnValueChangedListener { _, _oldVal, newVal ->

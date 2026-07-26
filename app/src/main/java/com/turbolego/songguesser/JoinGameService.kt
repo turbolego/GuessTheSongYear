@@ -17,6 +17,7 @@ import java.io.*
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID
+import javax.net.ssl.SSLSocket
 
 /**
  * Service that connects to a hosted game session via TCP (Wi-Fi) or Bluetooth.
@@ -37,6 +38,7 @@ class JoinGameService : Service() {
         private const val EXTRA_HOST_PORT = "host_port"
         private const val EXTRA_TRANSPORT = "transport"
         private const val EXTRA_BT_ADDRESS = "bt_address"
+        private const val EXTRA_TLS_SPKI_HASH = "tls_spki_hash"
 
         /**
          * Scan the LAN for any active hosts. Returns via networkListener callbacks.
@@ -59,6 +61,23 @@ class JoinGameService : Service() {
                 putExtra(EXTRA_PLAYER_NAME, playerName)
                 putExtra(EXTRA_HOST_IP, hostIp)
                 putExtra(EXTRA_HOST_PORT, hostPort)
+                putExtra(EXTRA_TRANSPORT, Protocol.TRANSPORT_WIFI)
+                action = ACTION_JOIN_WIFI
+            }
+            context.startService(intent)
+        }
+
+        /**
+         * Connect to a Wi-Fi host via TLS with SPKI pinning.
+         * Uses the host's TLS port (8889) and verifies the certificate
+         * against [tlsSpkiHash] obtained during LAN discovery.
+         */
+        fun connectWifiTls(context: Context, playerName: String, hostIp: String, tlsSpkiHash: String) {
+            val intent = Intent(context, JoinGameService::class.java).apply {
+                putExtra(EXTRA_PLAYER_NAME, playerName)
+                putExtra(EXTRA_HOST_IP, hostIp)
+                putExtra(EXTRA_HOST_PORT, Protocol.WIFI_TLS_SERVER_PORT)
+                putExtra(EXTRA_TLS_SPKI_HASH, tlsSpkiHash)
                 putExtra(EXTRA_TRANSPORT, Protocol.TRANSPORT_WIFI)
                 action = ACTION_JOIN_WIFI
             }
@@ -103,6 +122,8 @@ class JoinGameService : Service() {
     private var hostName: String? = null
     private var sessionId: String? = null
     private var joined = false
+    private var tlsSpkiHash: String? = null
+    private var auth: Protocol.MessageAuthenticator? = null
 
     var networkListener: GameNetworkListener? = null
 
@@ -126,8 +147,10 @@ class JoinGameService : Service() {
             ACTION_JOIN_WIFI -> {
                 hostIp = intent.getStringExtra(EXTRA_HOST_IP)
                 hostPort = intent.getIntExtra(EXTRA_HOST_PORT, Protocol.WIFI_SERVER_PORT)
+                tlsSpkiHash = intent.getStringExtra(EXTRA_TLS_SPKI_HASH)
                 if (hostIp != null) {
-                    serviceScope.launch { connectTcp(hostIp!!, hostPort) }
+                    val useTls = tlsSpkiHash != null
+                    serviceScope.launch { connectTcp(hostIp!!, hostPort, useTls = useTls) }
                 } else {
                     networkListener?.onNetworkError("Ingen vert-IP gitt")
                 }
@@ -260,7 +283,32 @@ class JoinGameService : Service() {
             val playersJson = msg.optJSONArray(Protocol.FIELD_PLAYERS)
             val playerCount = playersJson?.length() ?: 0
 
-            LanHost(hostName, ip, port, playerCount)
+            // Probe TLS port for SPKI hash (fire-and-forget — don't fail if unavailable)
+            var tlsSpkiHash: String? = null
+            try {
+                val tlsSocket = Socket()
+                tlsSocket.connect(InetSocketAddress(ip, Protocol.WIFI_TLS_SERVER_PORT), 600)
+                val tlsWriter = PrintWriter(tlsSocket.getOutputStream(), true)
+                val tlsReader = BufferedReader(InputStreamReader(tlsSocket.getInputStream(), Charsets.UTF_8))
+
+                val tlsHello = Protocol.buildJson {
+                    put(Protocol.FIELD_TYPE, Protocol.MSG_TLS_HELLO)
+                }
+                tlsWriter.println(tlsHello.toString())
+
+                val tlsLine = tlsReader.readLine()
+                val tlsMsg = tlsLine?.let { Protocol.tryParse(it) }
+                if (tlsMsg != null && tlsMsg.optString(Protocol.FIELD_TYPE) == Protocol.MSG_ACK) {
+                    tlsSpkiHash = tlsMsg.optString(Protocol.FIELD_TLS_SPKI_HASH, null)
+                    if (tlsSpkiHash.isNullOrBlank()) tlsSpkiHash = null
+                }
+
+                try { tlsSocket.close() } catch (_: Exception) {}
+            } catch (_: Exception) {
+                // TLS probe is non-essential — silently ignore
+            }
+
+            LanHost(hostName, ip, port, playerCount, tlsSpkiHash)
         } catch (_: Exception) {
             null
         } finally {
@@ -287,28 +335,54 @@ class JoinGameService : Service() {
         val hostName: String,
         val ip: String,
         val port: Int,
-        val playerCount: Int
+        val playerCount: Int,
+        val tlsSpkiHash: String? = null
     )
 
     // ═══════════════════════════════════════════════════════════════════════
     // Wi-Fi: TCP socket connection
     // ═══════════════════════════════════════════════════════════════════════
 
-    private suspend fun connectTcp(ip: String, port: Int) {
-        Log.d(TAG, "Connecting to $ip:$port")
+    private suspend fun connectTcp(ip: String, port: Int, useTls: Boolean = false) {
+        Log.d(TAG, "Connecting to $ip:$port (useTls=$useTls)")
         networkListener?.onHostingStatus("Kobler til $ip:$port...")
 
         try {
-            val sock = Socket()
-            sock.connect(InetSocketAddress(ip, port), Protocol.CONNECT_TIMEOUT_MS)
-            socket = sock
-            Log.d(TAG, "TCP connected to $ip:$port")
+            val (sock, reader, wr) = if (useTls) {
+                // Attempt TLS first, fall back to plain TCP
+                try {
+                    val tlsSock = if (tlsSpkiHash != null) {
+                        Log.d(TAG, "Attempting SPKI-pinned TLS to $ip:${Protocol.WIFI_TLS_SERVER_PORT}")
+                        SecureChannelManager.createPinnedClientSSLSocket(ip, Protocol.WIFI_TLS_SERVER_PORT, tlsSpkiHash!!)
+                    } else {
+                        Log.d(TAG, "Attempting relaxed TLS to $ip:${Protocol.WIFI_TLS_SERVER_PORT}")
+                        SecureChannelManager.createRelaxedClientSSLSocket(ip, Protocol.WIFI_TLS_SERVER_PORT)
+                    }
+                    Log.d(TAG, "TLS connected to $ip:${Protocol.WIFI_TLS_SERVER_PORT}")
+                    val tlsReader = BufferedReader(InputStreamReader(tlsSock.getInputStream(), Charsets.UTF_8))
+                    val tlsWriter = PrintWriter(tlsSock.getOutputStream(), true)
+                    Triple(tlsSock as java.net.Socket, tlsReader, tlsWriter)
+                } catch (e: Exception) {
+                    Log.w(TAG, "TLS connection failed, falling back to plain TCP: ${e.message}")
+                    val plainSock = Socket()
+                    plainSock.connect(InetSocketAddress(ip, port), Protocol.CONNECT_TIMEOUT_MS)
+                    Log.d(TAG, "TCP connected to $ip:$port (fallback)")
+                    val plainReader = BufferedReader(InputStreamReader(plainSock.getInputStream(), Charsets.UTF_8))
+                    val plainWriter = PrintWriter(plainSock.getOutputStream(), true)
+                    Triple(plainSock, plainReader, plainWriter)
+                }
+            } else {
+                val sock = Socket()
+                sock.connect(InetSocketAddress(ip, port), Protocol.CONNECT_TIMEOUT_MS)
+                Log.d(TAG, "TCP connected to $ip:$port")
+                val reader = BufferedReader(InputStreamReader(sock.getInputStream(), Charsets.UTF_8))
+                val writer = PrintWriter(sock.getOutputStream(), true)
+                Triple(sock, reader, writer)
+            }
 
+            socket = sock
             networkListener?.onHostingStatus("Tilkoblet!")
-            handleConnection(
-                BufferedReader(InputStreamReader(sock.getInputStream(), Charsets.UTF_8)),
-                PrintWriter(sock.getOutputStream(), true)
-            )
+            handleConnection(reader, wr)
         } catch (e: Exception) {
             Log.e(TAG, "TCP connection failed", e)
             networkListener?.onNetworkError("Kunne ikke koble til $ip:$port: ${e.message}")
@@ -381,6 +455,16 @@ class JoinGameService : Service() {
 
             sessionId = ack.optString(Protocol.FIELD_SESSION_ID)
             hostName = ack.optString(Protocol.FIELD_HOST_NAME)
+
+            // Extract session key for message signing
+            val sessionKeyStr = ack.optString(Protocol.FIELD_SESSION_KEY, null)
+            if (sessionKeyStr != null && sessionKeyStr.isNotEmpty()) {
+                auth = Protocol.createAuthenticator(sessionKeyStr)
+                Log.d(TAG, "Session key received, message signing active")
+            } else {
+                Log.w(TAG, "No session key in JOIN_ACK — messages will be unsigned")
+            }
+
             joined = true
 
             val playersJson = ack.optJSONArray(Protocol.FIELD_PLAYERS) ?: JSONArray()
@@ -420,6 +504,11 @@ class JoinGameService : Service() {
     }
 
     private fun handleServerMessage(msg: JSONObject) {
+        // Verify HMAC signature from host
+        if (auth != null && !auth!!.verify(msg)) {
+            Log.w(TAG, "Dropped message from host: invalid HMAC signature")
+            return
+        }
         when (msg.optString(Protocol.FIELD_TYPE)) {
             Protocol.MSG_PLAYER_LIST -> {
                 val playersJson = msg.optJSONArray(Protocol.FIELD_PLAYERS) ?: return
@@ -435,15 +524,17 @@ class JoinGameService : Service() {
             Protocol.MSG_REVEAL -> {
                 Log.d(TAG, "REVEAL received — sending blind guess: $currentPendingGuess")
                 networkListener?.onRevealReceived()
-                // Send GUESS_BLIND
+                // Send GUESS_BLIND with HMAC signature
                 val guessMsg = Protocol.buildJson {
                     put(Protocol.FIELD_TYPE, Protocol.MSG_GUESS_BLIND)
                     put(Protocol.FIELD_PLAYER, playerName)
                     put(Protocol.FIELD_GUESS, currentPendingGuess)
-                }.toString()
+                }
+                auth?.sign(guessMsg)
+                val payload = guessMsg.toString()
                 serviceScope.launch {
                     writeMutex.withLock {
-                        try { writer?.println(guessMsg) } catch (_: Exception) {}
+                        try { writer?.println(payload) } catch (_: Exception) {}
                     }
                 }
             }

@@ -22,6 +22,8 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
 import java.util.UUID
+import javax.net.ssl.SSLServerSocket
+import javax.net.ssl.SSLSocket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -73,7 +75,9 @@ class HostGameService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var serverSocket: ServerSocket? = null
+    private var tlsServerSocket: SSLServerSocket? = null
     private var btServerSocket: BluetoothServerSocket? = null
+    private var hostCredentials: SecureChannelManager.HostCredentials? = null
     private var acceptJob: Job? = null
     private val clients = ConcurrentHashMap<Int, ClientConnection>()
     private val playerConnections = ConcurrentHashMap<String, Int>()
@@ -85,6 +89,8 @@ class HostGameService : Service() {
     private var transport: String = Protocol.TRANSPORT_WIFI
     private var hostIp: String? = null
     private var hostPort: Int = Protocol.WIFI_SERVER_PORT
+    private var sessionKey: String? = null       // shared HMAC key for message signing
+    private var auth: Protocol.MessageAuthenticator? = null
 
     var networkListener: GameNetworkListener? = null
 
@@ -132,6 +138,10 @@ class HostGameService : Service() {
         sessionManager.createSession(sessionId!!, hostName)
         networkListener?.onHostingStatus("Oppretter spill-økt...")
 
+        // Generate session key for HMAC message signing
+        sessionKey = Protocol.generateSessionKey()
+        auth = sessionKey?.let { Protocol.createAuthenticator(it) }
+
         when (transport) {
             Protocol.TRANSPORT_BLUETOOTH -> startBluetooth()
             else -> startWifi()
@@ -158,18 +168,47 @@ class HostGameService : Service() {
             return
         }
 
+        // 3) Generate TLS host credentials
+        try {
+            hostCredentials = SecureChannelManager.createHostCredentials()
+            networkListener?.onHostingStatus("SPKI: ${hostCredentials!!.spkiHash}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create TLS credentials", e)
+            // Non-fatal: continue with plain TCP only
+            networkListener?.onNetworkError("TLS-feil: ${e.message} (kjører ukryptert)")
+        }
+
         networkListener?.onHostingStatus("IP: $hostIp")
 
-        // 3) Start TCP server socket on background thread
+        // 4) Start plain TCP server socket on background thread
         acceptJob?.cancel()
         acceptJob = serviceScope.launch {
             try {
+                // ── Plain TCP socket on WIFI_SERVER_PORT ──
                 val sock = ServerSocket()
                 sock.reuseAddress = true
                 sock.bind(InetSocketAddress(hostPort))
                 serverSocket = sock
                 Log.d(TAG, "TCP server listening on $hostIp:$hostPort")
                 networkListener?.onHostingStatus("Server på $hostIp:$hostPort")
+
+                // ── TLS socket on WIFI_TLS_SERVER_PORT (if creds available) ──
+                val creds = hostCredentials
+                if (creds != null) {
+                    try {
+                        val tlsSock = SecureChannelManager.createSecureServerSocket(
+                            creds.sslContext, Protocol.WIFI_TLS_SERVER_PORT
+                        )
+                        tlsServerSocket = tlsSock
+                        Log.d(TAG, "TLS server listening on $hostIp:${Protocol.WIFI_TLS_SERVER_PORT}")
+                        // Launch TLS accept loop in parallel
+                        launch { acceptTlsClients(tlsSock) }
+                    } catch (e: IOException) {
+                        Log.e(TAG, "Failed to start TLS server", e)
+                        networkListener?.onNetworkError("TLS-server-feil: ${e.message}")
+                    }
+                }
+
                 networkListener?.onHostingStarted(sessionId ?: "unknown", hostName)
                 acceptClients(sock)
             } catch (e: IOException) {
@@ -237,6 +276,31 @@ class HostGameService : Service() {
         }
     }
 
+    /** Accept loop for TLS-secured clients on the dedicated TLS port. */
+    private suspend fun acceptTlsClients(sock: SSLServerSocket) {
+        try {
+            while (serviceScope.isActive) {
+                if (clients.size >= MAX_CLIENTS) {
+                    try {
+                        val reject = sock.accept() as SSLSocket
+                        reject.close()
+                    } catch (_: IOException) { }
+                    delay(500)
+                    continue
+                }
+                val client = sock.accept() as SSLSocket ?: break
+                Log.d(TAG, "TLS client connected: ${client.inetAddress}")
+                serviceScope.launch {
+                    handleClient(client)
+                }
+            }
+        } catch (e: IOException) {
+            if (e !is SocketException || !sock.isClosed) {
+                Log.e(TAG, "TLS accept error", e)
+            }
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // CLIENT HANDLING (shared between Wi-Fi and Bluetooth)
     // ═══════════════════════════════════════════════════════════════════════
@@ -285,6 +349,7 @@ class HostGameService : Service() {
                 put(Protocol.FIELD_TYPE, Protocol.MSG_JOIN_ACK)
                 put(Protocol.FIELD_SESSION_ID, sessionId ?: "")
                 put(Protocol.FIELD_HOST_NAME, hostName)
+                put(Protocol.FIELD_SESSION_KEY, sessionKey ?: "")
                 put(Protocol.FIELD_PLAYERS, JSONArray(players))
             }
             writer.println(ack.toString())
@@ -366,6 +431,7 @@ class HostGameService : Service() {
                 put(Protocol.FIELD_TYPE, Protocol.MSG_JOIN_ACK)
                 put(Protocol.FIELD_SESSION_ID, sessionId ?: "")
                 put(Protocol.FIELD_HOST_NAME, hostName)
+                put(Protocol.FIELD_SESSION_KEY, sessionKey ?: "")
                 put(Protocol.FIELD_PLAYERS, JSONArray(getAllPlayerNames()))
             }
             writer.println(ack.toString())
@@ -386,6 +452,11 @@ class HostGameService : Service() {
     }
 
     private fun handleMessage(playerName: String, msg: JSONObject, writer: PrintWriter) {
+        // Verify HMAC signature if auth is available
+        if (auth != null && !auth!!.verify(msg)) {
+            Log.w(TAG, "Dropped message from $playerName: invalid HMAC signature")
+            return
+        }
         when (msg.optString(Protocol.FIELD_TYPE)) {
             Protocol.MSG_GUESS_BLIND -> {
                 val guess = msg.optInt(Protocol.FIELD_GUESS, 0)
@@ -405,8 +476,9 @@ class HostGameService : Service() {
         val msg = Protocol.buildJson {
             put(Protocol.FIELD_TYPE, Protocol.MSG_PLAYER_LIST)
             put(Protocol.FIELD_PLAYERS, JSONArray(getAllPlayerNames()))
-        }.toString()
-        broadcastToAll(msg)
+        }
+        auth?.sign(msg)
+        broadcastToAll(msg.toString())
     }
 
     fun broadcastVideo(videoId: String, year: Int, title: String) {
@@ -415,9 +487,10 @@ class HostGameService : Service() {
             put(Protocol.FIELD_VIDEO_ID, videoId)
             put(Protocol.FIELD_YEAR, year)
             put(Protocol.FIELD_TITLE, title)
-        }.toString()
+        }
+        auth?.sign(msg)
         Log.d(TAG, "Broadcasting VIDEO: $videoId ($year)")
-        broadcastToAll(msg)
+        broadcastToAll(msg.toString())
     }
 
     fun triggerReveal(localGuesses: Map<String, Int>) {
@@ -443,21 +516,24 @@ class HostGameService : Service() {
                     put(Protocol.FIELD_TOTAL_SCORE, r.totalScore)
                 }
             }))
-        }.toString()
+        }
+        auth?.sign(msg)
         Log.d(TAG, "Broadcasting REVEAL_RESULT")
-        broadcastToAll(msg)
+        broadcastToAll(msg.toString())
         // Also send REVEAL for clients still in old flow
         val reveal = Protocol.buildJson {
             put(Protocol.FIELD_TYPE, Protocol.MSG_REVEAL)
-        }.toString()
-        broadcastToAll(reveal)
+        }
+        auth?.sign(reveal)
+        broadcastToAll(reveal.toString())
     }
 
     private fun broadcastEnd() {
         val msg = Protocol.buildJson {
             put(Protocol.FIELD_TYPE, Protocol.MSG_END)
-        }.toString()
-        broadcastToAll(msg)
+        }
+        auth?.sign(msg)
+        broadcastToAll(msg.toString())
     }
 
     private fun broadcastToAll(json: String) {
@@ -536,6 +612,8 @@ class HostGameService : Service() {
 
         try { serverSocket?.close() } catch (_: IOException) {}
         serverSocket = null
+        try { tlsServerSocket?.close() } catch (_: IOException) {}
+        tlsServerSocket = null
         try { btServerSocket?.close() } catch (_: IOException) {}
         btServerSocket = null
 

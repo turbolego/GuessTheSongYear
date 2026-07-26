@@ -5,7 +5,7 @@ import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.cert.X509v3CertificateBuilder
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
-import org.bouncycastle.operator.jni.JcaContentSignerBuilder
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import java.math.BigInteger
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
@@ -221,6 +221,7 @@ object SecureChannelManager {
         val factory = ctx.socketFactory
         val sock = factory.createSocket(host, port) as SSLSocket
         sock.enabledProtocols = arrayOf(TLS_PROTOCOL)
+        sock.startHandshake()
         return sock
     }
 
