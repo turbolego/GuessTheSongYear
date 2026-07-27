@@ -204,7 +204,7 @@ dependencies {
         implementation("com.google.android.gms:play-services-tasks:18.4.1") {
             because("CVE-2022-2390 transitive")
         }
-        implementation("com.google.guava:guava:33.4.0-jre") {
+        implementation("com.google.guava:guava:33.6.0-jre") {
             because("CVE-2020-8908, CVE-2023-2976")
         }
         implementation("com.google.protobuf:protobuf-java:4.28.3") {
