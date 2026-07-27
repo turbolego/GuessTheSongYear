@@ -126,7 +126,10 @@ class HostGameFragment : Fragment(), GameNetworkListener {
                     Manifest.permission.BLUETOOTH_ADVERTISE
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                Toast.makeText(requireContext(), R.string.host_bt_permission, Toast.LENGTH_LONG).show()
+                requestPermissions(
+                    arrayOf(Manifest.permission.BLUETOOTH_ADVERTISE),
+                    REQUEST_BLUETOOTH_ADVERTISE
+                )
                 return
             }
         }
@@ -296,6 +299,23 @@ class HostGameFragment : Fragment(), GameNetworkListener {
             Toast.makeText(requireContext(), getString(R.string.host_error, error), Toast.LENGTH_LONG).show()
             binding.textViewHostStatus.text = getString(R.string.host_error, error)
             binding.progressBarHost.visibility = View.GONE
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray,
+    ) {
+        when (requestCode) {
+            REQUEST_BLUETOOTH_ADVERTISE -> {
+                if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                    startHostingViaBluetooth()
+                } else {
+                    Toast.makeText(requireContext(), R.string.host_bt_permission, Toast.LENGTH_LONG).show()
+                }
+            }
+            else -> super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         }
     }
 

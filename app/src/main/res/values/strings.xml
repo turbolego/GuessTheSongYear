@@ -152,6 +152,7 @@
     <string name="join_scan_bt_button">Søk Bluetooth</string>
     <string name="join_scanning_bt">Søker etter Bluetooth-verter…</string>
     <string name="join_connect_bt">Koble til Bluetooth</string>
+    <string name="join_via_bluetooth">Bluetooth</string>
     <string name="join_connect_button">Koble til</string>
 
     <!-- About -->

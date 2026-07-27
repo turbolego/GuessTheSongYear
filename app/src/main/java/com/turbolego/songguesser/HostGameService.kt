@@ -305,18 +305,52 @@ class HostGameService : Service() {
     // CLIENT HANDLING (shared between Wi-Fi and Bluetooth)
     // ═══════════════════════════════════════════════════════════════════════
 
+    /**
+     * Wi-Fi/TCP path: wraps [Socket] streams and delegates to the shared handler.
+     */
     private fun handleClient(socket: Socket) {
         try {
             val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
             val writer = PrintWriter(socket.getOutputStream(), true)
+            handleClient(reader, writer, Protocol.TRANSPORT_WIFI)
+        } catch (e: Exception) {
+            Log.w(TAG, "TCP handleClient error", e)
+        } finally {
+            try { socket.close() } catch (_: IOException) {}
+        }
+    }
 
-            // Read the first message — must be JOIN or HELLO
+    /**
+     * Bluetooth path: wraps [BluetoothSocket] streams and delegates to the shared handler.
+     */
+    private fun handleBluetoothClient(btSocket: BluetoothSocket) {
+        try {
+            val reader = BufferedReader(InputStreamReader(btSocket.inputStream, Charsets.UTF_8))
+            val writer = PrintWriter(btSocket.outputStream, true)
+            handleClient(reader, writer, Protocol.TRANSPORT_BLUETOOTH)
+        } catch (e: Exception) {
+            Log.w(TAG, "Bluetooth handleClient error", e)
+        } finally {
+            try { btSocket.close() } catch (_: IOException) {}
+        }
+    }
+
+    /**
+     * Shared client handler — called by both [handleClient(Socket)] and
+     * [handleBluetoothClient]. Reads HELLO or JOIN, responds, and enters the
+     * message loop. The caller's [finally] block closes the transport socket.
+     */
+    private fun handleClient(
+        reader: BufferedReader,
+        writer: PrintWriter,
+        transport: String,
+    ) {
+        try {
             val firstLine = readLineBounded(reader) ?: return
-            val firstMsg = Protocol.tryParse(firstLine) ?: run { return }
-
+            val firstMsg = Protocol.tryParse(firstLine) ?: return
             val firstType = firstMsg.optString(Protocol.FIELD_TYPE)
 
-            // HELLO: respond immediately with host info, then close
+            // HELLO: respond with ACK and return (caller closes socket)
             if (firstType == Protocol.MSG_HELLO) {
                 val ackMsg = Protocol.buildJson {
                     put(Protocol.FIELD_TYPE, Protocol.MSG_ACK)
@@ -324,7 +358,6 @@ class HostGameService : Service() {
                     put(Protocol.FIELD_PLAYERS, JSONArray(getAllPlayerNames()))
                 }
                 writer.println(ackMsg.toString())
-                try { socket.close() } catch (_: IOException) {}
                 return
             }
 
@@ -334,12 +367,14 @@ class HostGameService : Service() {
             val connId = nextConnId.getAndIncrement()
             val playerName = firstMsg.optString(Protocol.FIELD_PLAYER, "Ukjent")
 
+            Log.d(TAG, "Client $connId ($playerName) joined via $transport")
+
             // Close existing connection for same player name
             playerConnections.remove(playerName)?.let { oldConnId ->
                 clients.remove(oldConnId)?.disconnect()
             }
 
-            val conn = ClientConnection(connId, playerName, reader, writer, socket)
+            val conn = ClientConnection(connId, playerName, reader, writer)
             clients[connId] = conn
             playerConnections[playerName] = connId
 
@@ -354,33 +389,37 @@ class HostGameService : Service() {
             }
             writer.println(ack.toString())
             broadcastPlayerList()
+            networkListener?.onPlayerJoined(playerName, transport)
 
-            // Read further messages in a loop
+            // Message loop
             var line: String?
             while (reader.readLine().also { line = it } != null) {
-                if (line!!.length > MAX_MESSAGE_LENGTH) {
+                val msgStr = line!!
+                if (msgStr.length > MAX_MESSAGE_LENGTH) {
+                    Log.w(TAG, "Oversized message (${msgStr.length}) from $playerName")
                     conn.disconnect()
                     break
                 }
-                val msg = Protocol.tryParse(line!!) ?: continue
+                val msg = Protocol.tryParse(msgStr) ?: continue
                 handleMessage(playerName, msg, writer)
             }
         } catch (e: IOException) {
-            // client disconnected
+            Log.d(TAG, "Client disconnected ($transport): ${e.message}")
         } catch (e: Exception) {
-            // unexpected error
+            Log.e(TAG, "Client handler error ($transport)", e)
         } finally {
-            val disconnectedId = clients.entries.find { it.value.socket == socket }?.key
-            if (disconnectedId != null) {
-                val disconnectedPlayer = clients[disconnectedId]?.player
-                clients.remove(disconnectedId)
-                if (disconnectedPlayer != null) {
-                    playerConnections.remove(disconnectedPlayer, disconnectedId)
+            // Look up connection by writer identity (transport-agnostic)
+            val connId = clients.entries.find { it.value.writer == writer }?.key
+            if (connId != null) {
+                val playerName = clients[connId]?.player
+                clients.remove(connId)
+                if (playerName != null) {
+                    playerConnections.remove(playerName, connId)
                 }
-                disconnectedPlayer?.let { networkListener?.onPlayerDisconnected(it) }
+                playerName?.let { networkListener?.onPlayerDisconnected(it) }
                 broadcastPlayerList()
+                Log.d(TAG, "Connection $connId ($playerName) cleaned up ($transport)")
             }
-            try { socket.close() } catch (_: IOException) {}
         }
     }
 
@@ -403,68 +442,6 @@ class HostGameService : Service() {
     /** Get all connected player names including the host. */
     private fun getAllPlayerNames(): List<String> {
         return listOf(hostName) + clients.values.map { it.player }
-    }
-
-    /** Used by Bluetooth path — wraps a BluetoothSocket in a stream pair. */
-    private fun handleBluetoothClient(btSocket: BluetoothSocket) {
-        try {
-            val reader = BufferedReader(InputStreamReader(btSocket.inputStream, Charsets.UTF_8))
-            val writer = PrintWriter(btSocket.outputStream, true)
-
-            val firstLine = readLineBounded(reader) ?: return
-            val firstMsg = Protocol.tryParse(firstLine) ?: return
-
-            val firstType = firstMsg.optString(Protocol.FIELD_TYPE)
-
-            // HELLO: respond immediately with host info, then close
-            if (firstType == Protocol.MSG_HELLO) {
-                val ackMsg = Protocol.buildJson {
-                    put(Protocol.FIELD_TYPE, Protocol.MSG_ACK)
-                    put(Protocol.FIELD_HOST_NAME, hostName)
-                    put(Protocol.FIELD_PLAYERS, JSONArray(getAllPlayerNames()))
-                }
-                writer.println(ackMsg.toString())
-                try { btSocket.close() } catch (_: IOException) {}
-                return
-            }
-
-            // Not JOIN — bail
-            if (firstType != Protocol.MSG_JOIN) return
-
-            val connId = nextConnId.getAndIncrement()
-            val playerName = firstMsg.optString(Protocol.FIELD_PLAYER, "Ukjent")
-
-            // Close existing connection for same player name
-            playerConnections.remove(playerName)?.let { oldConnId ->
-                clients.remove(oldConnId)?.disconnect()
-            }
-
-            val conn = ClientConnection(connId, playerName, reader, writer, null)
-            clients[connId] = conn
-            playerConnections[playerName] = connId
-
-            val ack = Protocol.buildJson {
-                put(Protocol.FIELD_TYPE, Protocol.MSG_JOIN_ACK)
-                put(Protocol.FIELD_SESSION_ID, sessionId ?: "")
-                put(Protocol.FIELD_HOST_NAME, hostName)
-                put(Protocol.FIELD_SESSION_KEY, sessionKey ?: "")
-                put(Protocol.FIELD_PLAYERS, JSONArray(getAllPlayerNames()))
-            }
-            writer.println(ack.toString())
-            broadcastPlayerList()
-
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                if (line!!.length > MAX_MESSAGE_LENGTH) {
-                    conn.disconnect()
-                    break
-                }
-                val msg = Protocol.tryParse(line!!) ?: continue
-                handleMessage(playerName, msg, writer)
-            }
-        } catch (e: IOException) {
-            // client disconnected
-        } catch (_: Exception) {}
     }
 
     private fun handleMessage(playerName: String, msg: JSONObject, writer: PrintWriter) {
@@ -590,7 +567,8 @@ class HostGameService : Service() {
                 )
                 btServerSocket = btSock
                 Log.d(TAG, "Bluetooth server listening")
-                networkListener?.onHostingStatus("Bluetooth-server aktiv")
+                val btName = adapter.name ?: "Bluetooth"
+                networkListener?.onHostingStatus("Bluetooth-server aktiv som \"$btName\"")
                 networkListener?.onHostingStarted(sessionId ?: "unknown", hostName)
                 acceptBluetoothClients(btSock)
             } catch (e: IOException) {
@@ -645,12 +623,10 @@ class HostGameService : Service() {
         val player: String,
         val reader: BufferedReader?,
         val writer: PrintWriter?,
-        val socket: Socket?,
     ) {
         fun disconnect() {
             playerConnections.remove(player, connId)
             clients.remove(connId)
-            try { socket?.close() } catch (_: IOException) {}
         }
     }
 }

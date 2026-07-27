@@ -149,6 +149,10 @@
     <string name="join_host_ip_hint">Host\'s IP (e.g. 192.168.1.42:8888)</string>
     <string name="join_scan_qr_desc">Scan QR code</string>
     <string name="join_scan_button">Search for games</string>
+    <string name="join_scan_bt_button">Scan Bluetooth</string>
+    <string name="join_scanning_bt">Scanning for Bluetooth hosts…</string>
+    <string name="join_connect_bt">Connect Bluetooth</string>
+    <string name="join_via_bluetooth">Bluetooth</string>
     <string name="join_connect_button">Connect</string>
 
     <!-- About -->

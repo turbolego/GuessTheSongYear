@@ -499,7 +499,7 @@ private class LanHostsAdapter(
             ResourcesCompat.getColor(holder.itemView.resources, R.color.body_text, null)
         )
         holder.text2.text = if (host.btAddress != null) {
-            "${context.getString(R.string.join_player_count, host.playerCount)} · ${host.ip}"
+            context.getString(R.string.join_player_count, host.playerCount) + " · ${context.getString(R.string.join_via_bluetooth)}"
         } else {
             context.getString(
                 R.string.join_player_count,
