@@ -144,6 +144,8 @@ dependencies {
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.android)
     testImplementation(libs.mockito.inline)
+    // Real org.json for JVM unit tests (Android mock throws on every method call)
+    testImplementation("org.json:json:20231013")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
