@@ -30,7 +30,6 @@ zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embe
 androidx-test-core = { group = "androidx.test", name = "core", version = "1.7.0" }
 mockito-core = { group = "org.mockito", name = "mockito-core", version = "5.23.0" }
 mockito-android = { group = "org.mockito", name = "mockito-android", version = "5.23.0" }
-mockito-inline = { group = "org.mockito", name = "mockito-inline", version = "5.2.0" }
 android-youtube-player = { group = "com.pierfrancescosoffritti.androidyoutubeplayer", name = "core", version.ref = "androidYoutubePlayer" }
 
 [plugins]
