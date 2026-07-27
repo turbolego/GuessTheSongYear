@@ -133,7 +133,7 @@ dependencies {
     implementation(libs.okhttp)
 
     // Bouncy Castle for TLS certificate generation (SecureChannelManager)
-    implementation("org.bouncycastle:bcprov-jdk18on:1.84")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.85")
     implementation("org.bouncycastle:bcpkix-jdk18on:1.85")
     implementation("org.bouncycastle:bcutil-jdk18on:1.84")
 
@@ -175,7 +175,7 @@ dependencies {
         implementation("io.netty:netty-transport:4.1.136.Final") { because("Netty bom alignment") }
         implementation("io.netty:netty-resolver:4.1.136.Final") { because("Netty bom alignment") }
 
-        implementation("org.bouncycastle:bcprov-jdk18on:1.84") {
+        implementation("org.bouncycastle:bcprov-jdk18on:1.85") {
             because("CVE-2025-14813 (CRITICAL), GHSA-c3fc-8qff-9hwx")
         }
         implementation("org.bouncycastle:bcpkix-jdk18on:1.85") {
