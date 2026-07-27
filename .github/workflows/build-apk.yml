@@ -10,7 +10,7 @@ on:
 permissions:
   contents: read
   actions: read
-  security-events: read  # needed to read Dependabot alerts for status checks
+  security-events: read
 
 concurrency:
   group: build-${{ github.ref }}
@@ -22,17 +22,17 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write   # needed for auto-version bump commit + push
+      contents: read
 
     outputs:
       version_name: ${{ steps.version.outputs.versionName }}
       version_code: ${{ steps.version.outputs.versionCode }}
+      skip_release: ${{ steps.version.outputs.skipRelease }}
 
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-java@v5
         with:
@@ -41,45 +41,29 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      - name: Bump version
+      - name: Determine version
         id: version
         run: |
           set -euo pipefail
-          CURRENT_CODE=$(grep 'versionCode' app/build.gradle.kts | grep -oE '[0-9]+' | tail -1)
-          NEW_CODE=$((CURRENT_CODE + 1))
-          CURRENT_NAME=$(grep 'versionName' app/build.gradle.kts | sed -E 's/.*"([^"]+)".*/\1/')
-          MAJOR_MINOR=$(echo "$CURRENT_NAME" | sed -E 's/\.[0-9]+$//')
-          NEW_NAME="${MAJOR_MINOR}.${NEW_CODE}"
 
-          echo "CURRENT_CODE=$CURRENT_CODE → NEW_CODE=$NEW_CODE"
-          echo "CURRENT_NAME=$CURRENT_NAME → NEW_NAME=$NEW_NAME"
+          # Read version from the pushed commit
+          CURRENT_CODE=$(grep -oP 'versionCode\s*=\s*\K\d+' app/build.gradle.kts)
+          CURRENT_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
 
-          # Validate non-empty
-          if [ -z "$NEW_NAME" ] || [ "$MAJOR_MINOR" = "$CURRENT_NAME" ]; then
-            echo "ERROR: version extraction failed"; exit 1
-          fi
+          echo "version $CURRENT_NAME (code $CURRENT_CODE)"
 
-          # bump in gradle (only on non-PR pushes)
-          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
-            sed -i "s/versionCode = .*/versionCode = ${NEW_CODE}/" app/build.gradle.kts
-            sed -i "s/versionName = \".*\"/versionName = \"${NEW_NAME}\"/" app/build.gradle.kts
-            echo "Bumped to $NEW_NAME ($NEW_CODE)"
+          # Check if this versionCode already has a release
+          TAG="v${CURRENT_NAME}"
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Skip release: tag ${TAG} already exists"
+            SKIP_RELEASE=true
           else
-            echo "PR — keeping versionCode=$CURRENT_CODE, versionName=$CURRENT_NAME"
+            SKIP_RELEASE=false
           fi
 
-          echo "versionCode=${NEW_CODE}" >> "$GITHUB_OUTPUT"
-          echo "versionName=${NEW_NAME}" >> "$GITHUB_OUTPUT"
-
-      # Commit & push the bump (only on master push, not PR)
-      - name: Commit version bump
-        if: github.event_name != 'pull_request'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add app/build.gradle.kts
-          git diff --staged --quiet || git commit -m "chore: bump to v${{ steps.version.outputs.versionName }} [skip ci]"
-          git push
+          echo "versionCode=${CURRENT_CODE}" >> "$GITHUB_OUTPUT"
+          echo "versionName=${CURRENT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "skipRelease=${SKIP_RELEASE}" >> "$GITHUB_OUTPUT"
 
       - name: Grant gradlew permissions
         run: chmod +x gradlew
@@ -121,9 +105,13 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # needed for creating GitHub Release
+      contents: write
 
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v8
         with:
           name: app-release
@@ -134,14 +122,15 @@ jobs:
           name: app-debug
           path: debug
 
-      - name: Create Release
+      - name: Create tag and release
+        if: needs.build.outputs.skip_release == 'false'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ needs.build.outputs.versionName }}
-          name: "v${{ needs.build.outputs.versionName }}"
+          tag_name: v${{ needs.build.outputs.version_name }}
+          name: "v${{ needs.build.outputs.version_name }}"
           make_latest: true
           body: |
-            ## 🎵 GuessTheSongYear v${{ needs.build.outputs.versionName }}
+            ## 🎵 GuessTheSongYear v${{ needs.build.outputs.version_name }}
 
             Automatically built from commit [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }}).
 
@@ -154,6 +143,7 @@ jobs:
             - 📊 Points accuracy + streak multiplier
             - 🎮 Local multiplayer (same-device hot-seat)
             - 🎮 WiFi Direct multiplayer (host/join)
+            - 🎮 Bluetooth multiplayer (host/join)
             - 🚫 Duplicate video prevention
             - 🔇 Audio-only mode (overlay hide video)
             - 🎨 3 difficulty levels (Easy, Medium, Hard)
@@ -164,3 +154,9 @@ jobs:
           files: |
             release/*.apk
             debug/*.apk
+
+      - name: No new release needed
+        if: needs.build.outputs.skip_release == 'true'
+        run: |
+          echo "Release skipped — tag v${{ needs.build.outputs.version_name }} already exists."
+          echo "To create a new release, bump versionCode in app/build.gradle.kts and push."
