@@ -134,7 +134,7 @@ dependencies {
 
     // Bouncy Castle for TLS certificate generation (SecureChannelManager)
     implementation("org.bouncycastle:bcprov-jdk18on:1.84")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.84")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.85")
     implementation("org.bouncycastle:bcutil-jdk18on:1.84")
 
     // WiFi P2P for local multiplayer (using built-in Android APIs)
@@ -178,7 +178,7 @@ dependencies {
         implementation("org.bouncycastle:bcprov-jdk18on:1.84") {
             because("CVE-2025-14813 (CRITICAL), GHSA-c3fc-8qff-9hwx")
         }
-        implementation("org.bouncycastle:bcpkix-jdk18on:1.84") {
+        implementation("org.bouncycastle:bcpkix-jdk18on:1.85") {
             because("GHSA-wg6q-6289-32hp")
         }
         implementation("org.bouncycastle:bcutil-jdk18on:1.84") {
