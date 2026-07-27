@@ -111,10 +111,10 @@ All network messages are newline-delimited JSON over a reliable transport (TCP o
 | Video player | YouTube Iframe Player API (WebView embeddings) |
 | YouTube API library | `com.pierfrancescosoffritti.androidyoutubeplayer:core` 12.1.2 |
 | QR code | ZXing Core 3.5.3 + ZXing Embedded 4.3.0 |
-| Crypto (TLS) | BouncyCastle bcpkis-jdk18on 1.84 + standard javax.net.ssl |
+| Crypto (TLS) | BouncyCastle bcpkix-jdk18on 1.84 + standard javax.net.ssl |
 | Crypto (signing) | HMAC-SHA256 via javax.crypto.Mac |
 | CI/CD | GitHub Actions (build + test + release on push to master) |
-| Dependabs | Dependabot for weekly Gradle dependency updates |
+| Dependencies | Dependabot for weekly Gradle dependency updates |
 
 ---
 
@@ -126,7 +126,7 @@ All network messages are newline-delimited JSON over a reliable transport (TCP o
 ./gradlew assembleRelease    # Release APK (unsigned, requires signing config)
 ```
 
-**CI workflow:** `perc/.github/workflows/build-apk.yml` runs on push/PR to `master`:
+**CI workflow:** `.github/workflows/build-apk.yml` runs on push/PR to `master`:
 - Builds Debug + Release APKs
 - Runs unit tests
 - Auto-bumps version code
@@ -136,15 +136,15 @@ All network messages are newline-delimited JSON over a reliable transport (TCP o
 
 ## 📄 License
 
-This project was originally a weekend hack by **Torbjørn "turbolego" Haugen**. The name "GuessTheSongYear", the game loop concept, and all source code in this repository are OSI of Torbjørn Haugen. Contributions interest are welcome through the standard workflow: fork → branch → PR into `master`.
+This project was originally a weekend hack by **turbolego**. The name "GuessTheSongYear", the game loop concept, and all source code in this repository are open source. Contributions are welcome through the standard workflow: fork → branch → PR into `master`.
 
-The app should be a drinking game—install some may be already.
+The app works great as a party game — install and play.
 
 ---
 
 ## 🔐 Security
 
-The game is a LAN party in tool, not a battle-hardened surveillance system. That is understood — and so there has also some security effort gone into the most meaningful attack surfaces:
+The game is a LAN party tool, not a battle-hardened surveillance system. That said, some security effort has gone into the most meaningful attack surfaces:
 
 - All multiplayer messages are **HMAC-SHA256 signed** per session
 - Optional **TLS 1.3** + **SPKI certificate pinning** on the network layer
@@ -157,4 +157,4 @@ For a detailed security audit of every component, see **[SECURITY.md](./SECURITY
 
 ## 📦 Releases
 
-Every push to `master` auto-builds a new APK through CI, bumps version numbers, and creates a [GitHub Release](https://github.com/turbulego/GuessTheSongYear/releases). Go find the latest one there and side-load onto your Android device — the project isn't on the Play Stars Store (it wasn't needed setup: it was a weekend side-project and there was no reason to fill in Google's tax registration form).
+Every push to `master` auto-builds a new APK through CI, bumps version numbers, and creates a [GitHub Release](https://github.com/turbolego/GuessTheSongYear/releases). Find the latest one and side-load it onto your Android device — the project isn't on the Play Store (it was a weekend side-project and there was no reason to fill in Google's tax registration form).
