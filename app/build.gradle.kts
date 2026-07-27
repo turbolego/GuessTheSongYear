@@ -153,27 +153,27 @@ dependencies {
 
     // Enforce safe versions of transitive dependencies
     constraints {
-        implementation("io.netty:netty-codec-http:4.1.136.Final") {
+        implementation("io.netty:netty-codec-http:4.2.16.Final") {
             because("CVE-2026-59921, CVE-2026-59899, CVE-2026-59898, CVE-2026-56746, CVE-2026-56745, CVE-2026-55833, CVE-2026-55831, CVE-2026-50020, CVE-2026-42585, CVE-2026-42584, CVE-2026-42581, CVE-2026-42580, CVE-2026-41417, CVE-2026-33870, CVE-2025-67735, CVE-2025-58056, CVE-2024-29025")
         }
-        implementation("io.netty:netty-codec-http2:4.1.136.Final") {
+        implementation("io.netty:netty-codec-http2:4.2.16.Final") {
             because("CVE-2026-59900, CVE-2026-50560, CVE-2026-48043, CVE-2026-47244, CVE-2026-42587, CVE-2026-33871, CVE-2025-55163")
         }
-        implementation("io.netty:netty-handler:4.1.136.Final") {
+        implementation("io.netty:netty-handler:4.2.16.Final") {
             because("CVE-2026-50010, CVE-2026-45416, CVE-2026-44249, CVE-2025-24970, CVE-2023-34462")
         }
-        implementation("io.netty:netty-codec:4.1.136.Final") {
+        implementation("io.netty:netty-codec:4.2.16.Final") {
             because("CVE-2026-59901, CVE-2026-42583, CVE-2025-58057")
         }
-        implementation("io.netty:netty-handler-proxy:4.1.136.Final") {
+        implementation("io.netty:netty-handler-proxy:4.2.16.Final") {
             because("CVE-2026-42578")
         }
-        implementation("io.netty:netty-common:4.1.136.Final") {
+        implementation("io.netty:netty-common:4.2.16.Final") {
             because("CVE-2025-25193, CVE-2024-47535")
         }
-        implementation("io.netty:netty-buffer:4.1.136.Final") { because("Netty bom alignment") }
-        implementation("io.netty:netty-transport:4.1.136.Final") { because("Netty bom alignment") }
-        implementation("io.netty:netty-resolver:4.1.136.Final") { because("Netty bom alignment") }
+        implementation("io.netty:netty-buffer:4.2.16.Final") { because("Netty bom alignment") }
+        implementation("io.netty:netty-transport:4.2.16.Final") { because("Netty bom alignment") }
+        implementation("io.netty:netty-resolver:4.2.16.Final") { because("Netty bom alignment") }
 
         implementation("org.bouncycastle:bcprov-jdk18on:1.84") {
             because("CVE-2025-14813 (CRITICAL), GHSA-c3fc-8qff-9hwx")
