@@ -201,7 +201,7 @@ dependencies {
         implementation("com.google.android.gms:play-services-basement:18.10.0") {
             because("CVE-2022-2390")
         }
-        implementation("com.google.android.gms:play-services-tasks:18.2.0") {
+        implementation("com.google.android.gms:play-services-tasks:18.4.1") {
             because("CVE-2022-2390 transitive")
         }
         implementation("com.google.guava:guava:33.4.0-jre") {
