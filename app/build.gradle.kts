@@ -34,6 +34,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Signing from env vars for CI (local builds use debug.keystore if unset)
+            if (System.getenv("ANDROID_KEYSTORE_BASE64") != null) {
+                signingConfig = signingConfigs.create("release") {
+                    storeFile = rootProject.file(".ci-keystore.jks")
+                    storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                    keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                    keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                }
+            }
         }
     }
 

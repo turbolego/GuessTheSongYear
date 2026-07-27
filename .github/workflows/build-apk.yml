@@ -46,13 +46,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Read version from the pushed commit
           CURRENT_CODE=$(grep -oP 'versionCode\s*=\s*\K\d+' app/build.gradle.kts)
           CURRENT_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
 
           echo "version $CURRENT_NAME (code $CURRENT_CODE)"
 
-          # Check if this versionCode already has a release
           TAG="v${CURRENT_NAME}"
           if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
             echo "Skip release: tag ${TAG} already exists"
@@ -71,8 +69,8 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
+      - name: Build Release AAB (unsigned)
+        run: ./gradlew bundleRelease --no-daemon
 
       - name: Run Unit Tests
         run: ./gradlew test --no-daemon
@@ -84,11 +82,11 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
-      - name: Upload Release APK
+      - name: Upload Release AAB
         uses: actions/upload-artifact@v7
         with:
           name: app-release
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          path: app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
 
       - name: Upload Test Results
@@ -99,13 +97,65 @@ jobs:
           path: app/build/reports/tests/
           retention-days: 14
 
+  # ── Sign + upload to Play Store ─────────────────────────────────────────
+  playstore:
+    if: github.event_name != 'pull_request' && needs.build.outputs.skip_release == 'false'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: 17
+          distribution: 'temurin'
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: app-release
+          path: app/build/outputs/bundle/release
+
+      - name: Decode keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > .ci-keystore.jks
+
+      - name: Build signed AAB
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Upload to Google Play (internal track)
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+          packageName: com.turbolego.songguesser
+          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          tracks: internal
+          releaseName: ${{ needs.build.outputs.version_name }}
+
+      - name: Upload signed AAB to GitHub
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-release-signed
+          path: app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
   # ── Create GitHub Release ──────────────────────────────────────────────
   release:
     if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      checks: write
 
     steps:
       - uses: actions/checkout@v7
