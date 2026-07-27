@@ -209,10 +209,10 @@ dependencies {
         implementation("com.google.guava:guava:33.6.0-jre") {
             because("CVE-2020-8908, CVE-2023-2976")
         }
-        implementation("com.google.protobuf:protobuf-java:4.28.3") {
+        implementation("com.google.protobuf:protobuf-java:4.35.1") {
             because("CVE-2024-7254")
         }
-        implementation("com.google.protobuf:protobuf-kotlin:4.28.3") {
+        implementation("com.google.protobuf:protobuf-kotlin:4.35.1") {
             because("CVE-2024-7254")
         }
     }
