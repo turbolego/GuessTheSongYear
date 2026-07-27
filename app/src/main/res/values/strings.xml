@@ -148,7 +148,10 @@
     <string name="join_player_count">%d spiller(e)</string>
     <string name="join_host_ip_hint">Vertens IP (f.eks. 192.168.1.42:8888)</string>
     <string name="join_scan_qr_desc">Skann QR-kode</string>
-    <string name="join_scan_button">Søk etter spill</string>
+    <string name="join_scan_button">Søk på LAN</string>
+    <string name="join_scan_bt_button">Søk Bluetooth</string>
+    <string name="join_scanning_bt">Søker etter Bluetooth-verter…</string>
+    <string name="join_connect_bt">Koble til Bluetooth</string>
     <string name="join_connect_button">Koble til</string>
 
     <!-- About -->

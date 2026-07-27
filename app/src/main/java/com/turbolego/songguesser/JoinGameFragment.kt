@@ -1,12 +1,16 @@
 package com.turbolego.songguesser
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -34,13 +38,15 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     private var hostPort: Int = Protocol.WIFI_SERVER_PORT
     private var hasJoined = false
 
-    /** Hosts discovered via LAN scan. */
+    /** Hosts discovered via LAN or Bluetooth scan. */
     private val discoveredHosts = mutableListOf<JoinGameService.LanHost>()
     private var hostsAdapter: LanHostsAdapter? = null
 
     companion object {
         private const val TAG = "JoinGameFragment"
         private const val RC_QR_SCAN = 0x0000c0de
+        private const val REQUEST_BLUETOOTH_SCAN = 2001
+        private const val REQUEST_BLUETOOTH_CONNECT = 2002
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -69,17 +75,30 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        clearCallbacks()
         if (!hasJoined) {
             JoinGameService.stop(requireContext())
         }
         _binding = null
     }
 
+    /** Clear pending callbacks to prevent leaks. */
+    private fun clearCallbacks() {
+        if (JoinGameService.pendingListener === this) {
+            JoinGameService.pendingListener = null
+        }
+        JoinGameService.pendingHostCallback = null
+    }
+
     // ── Setup ────────────────────────────────────────────────────────────────
 
     private fun setupRecyclerView() {
         hostsAdapter = LanHostsAdapter(discoveredHosts) { host ->
-            connectToHost(host.ip, host.port)
+            if (host.btAddress != null) {
+                connectToBluetoothHost(host.btAddress, host.hostName)
+            } else {
+                connectToHost(host.ip, host.port)
+            }
         }
         binding.recyclerViewDiscoveredHosts.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -91,6 +110,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         binding.buttonConnect.setOnClickListener { connectToHost() }
         binding.buttonScanQr.setOnClickListener { scanQrCode() }
         binding.buttonRefreshScan.setOnClickListener { startLanScan() }
+        binding.buttonScanBluetooth.setOnClickListener { startBluetoothScan() }
     }
 
     // ── LAN Scan ─────────────────────────────────────────────────────────────
@@ -112,10 +132,90 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         binding.buttonRefreshScan.isEnabled = false
         binding.buttonScanQr.isEnabled = false
 
+        JoinGameService.pendingListener = this
+        JoinGameService.pendingHostCallback = { host ->
+            requireActivity().runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                discoveredHosts.add(host)
+                hostsAdapter?.notifyItemInserted(discoveredHosts.size - 1)
+            }
+        }
         JoinGameService.scanLan(requireContext(), playerName)
     }
 
-    // ── QR Scan ──────────────────────────────────────────────────────────────
+    // ── Bluetooth Scan ────────────────────────────────────────────────────────
+
+    private fun startBluetoothScan() {
+        playerName = binding.editTextPlayerName.text.toString().trim()
+        if (playerName.isBlank()) {
+            Toast.makeText(requireContext(), R.string.join_enter_name, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Check runtime permissions on Android 12+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.BLUETOOTH_SCAN)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(
+                    arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT),
+                    REQUEST_BLUETOOTH_SCAN
+                )
+                return
+            }
+        }
+
+        discoveredHosts.clear()
+        hostsAdapter?.notifyDataSetChanged()
+        hasJoined = false
+
+        binding.textViewConnectionStatus.visibility = View.VISIBLE
+        binding.textViewConnectionStatus.text = getString(R.string.join_scanning_bt)
+        binding.progressBarJoin.visibility = View.VISIBLE
+        binding.buttonScanBluetooth.isEnabled = false
+
+        JoinGameService.pendingListener = this
+        JoinGameService.pendingHostCallback = { host ->
+            requireActivity().runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                discoveredHosts.add(host)
+                hostsAdapter?.notifyItemInserted(discoveredHosts.size - 1)
+            }
+        }
+        JoinGameService.scanBluetooth(requireContext(), playerName)
+    }
+
+    /** Connect to a Bluetooth host by MAC address. */
+    private fun connectToBluetoothHost(btAddress: String, hostNameHint: String) {
+        playerName = binding.editTextPlayerName.text.toString().trim()
+        if (playerName.isBlank()) {
+            Toast.makeText(requireContext(), R.string.join_enter_name, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Check BLUETOOTH_CONNECT permission (Android 12+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.BLUETOOTH_CONNECT)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(
+                    arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+                    REQUEST_BLUETOOTH_CONNECT
+                )
+                return
+            }
+        }
+
+        hasJoined = false
+
+        binding.textViewConnectionStatus.visibility = View.VISIBLE
+        binding.textViewConnectionStatus.text = getString(R.string.join_connecting, hostNameHint)
+        binding.progressBarJoin.visibility = View.VISIBLE
+        disableAllButtons()
+
+        JoinGameService.pendingListener = this
+        JoinGameService.connectBluetooth(requireContext(), playerName, btAddress)
+    }
 
     private fun scanQrCode() {
         val integrator = IntentIntegrator(requireActivity())
@@ -221,10 +321,48 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
         binding.buttonConnect.isEnabled = false
         binding.buttonScanQr.isEnabled = false
         binding.buttonRefreshScan.isEnabled = false
+        binding.buttonScanBluetooth.isEnabled = false
         binding.editTextPlayerName.isEnabled = false
         binding.editTextHostIp.isEnabled = false
 
+        JoinGameService.pendingListener = this
+        JoinGameService.pendingHostCallback = null // clear scan callback
         JoinGameService.connectWifi(requireContext(), playerName, hostIp, hostPort)
+    }
+
+    /** Disable all interactive controls in the join UI. */
+    private fun disableAllButtons() {
+        binding.buttonConnect.isEnabled = false
+        binding.buttonScanQr.isEnabled = false
+        binding.buttonRefreshScan.isEnabled = false
+        binding.buttonScanBluetooth.isEnabled = false
+        binding.editTextPlayerName.isEnabled = false
+        binding.editTextHostIp.isEnabled = false
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray,
+    ) {
+        when (requestCode) {
+            REQUEST_BLUETOOTH_SCAN -> {
+                if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                    startBluetoothScan()
+                } else {
+                    Toast.makeText(requireContext(), R.string.host_bt_permission, Toast.LENGTH_LONG).show()
+                }
+            }
+            REQUEST_BLUETOOTH_CONNECT -> {
+                if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                    // Re-trigger after permission granted — need the MAC address again
+                    Toast.makeText(requireContext(), R.string.join_scan_bt_button, Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(requireContext(), R.string.host_bt_permission, Toast.LENGTH_LONG).show()
+                }
+            }
+            else -> super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -234,11 +372,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
     override fun onHostingStarted(sessionId: String, hostName: String) { /* n/a */ }
 
     override fun onServiceRegistered(serviceName: String) {
-        // A LAN host was found — check if it's already in the list
-        val ip = hostIp // this gets set by onHostingStatus containing IP info
-        // Actually the LAN scan gives us through the listener indirectly.
-        // We use onHostingStatus for scan status messages, and discoveredHosts
-        // is populated via the JoinGameService's callback path.
+        // Hosts are added to the discovered list via pendingHostCallback
     }
 
     override fun onJoinedSession(session: GameSession) {
@@ -323,6 +457,7 @@ class JoinGameFragment : Fragment(), GameNetworkListener {
             binding.buttonConnect.isEnabled = true
             binding.buttonScanQr.isEnabled = true
             binding.buttonRefreshScan.isEnabled = true
+            binding.buttonScanBluetooth.isEnabled = true
             binding.editTextPlayerName.isEnabled = true
             binding.editTextHostIp.isEnabled = true
         }
@@ -363,10 +498,14 @@ private class LanHostsAdapter(
         holder.text1.setTextColor(
             ResourcesCompat.getColor(holder.itemView.resources, R.color.body_text, null)
         )
-        holder.text2.text = context.getString(
-            R.string.join_player_count,
-            host.playerCount
-        ) + " · ${host.ip}:${host.port}"
+        holder.text2.text = if (host.btAddress != null) {
+            "${context.getString(R.string.join_player_count, host.playerCount)} · ${host.ip}"
+        } else {
+            context.getString(
+                R.string.join_player_count,
+                host.playerCount
+            ) + " · ${host.ip}:${host.port}"
+        }
         holder.text2.setTextColor(
             ResourcesCompat.getColor(holder.itemView.resources, R.color.muted_text, null)
         )

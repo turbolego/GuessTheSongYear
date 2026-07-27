@@ -4,8 +4,10 @@ import android.app.Service
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.IBinder
 import android.util.Log
 import kotlinx.coroutines.*
@@ -17,6 +19,7 @@ import java.io.*
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
 import javax.net.ssl.SSLSocket
 
 /**
@@ -32,6 +35,19 @@ class JoinGameService : Service() {
 
     companion object {
         @Volatile var instance: JoinGameService? = null
+
+        /**
+         * Pending listener — set by the fragment BEFORE calling scan/connect.
+         * Transferred to [networkListener] in onCreate() (same pattern as HostGameService).
+         */
+        @Volatile var pendingListener: GameNetworkListener? = null
+
+        /**
+         * Pending callback — receives [LanHost] objects as they are discovered
+         * during LAN or Bluetooth scans. The fragment sets this before calling
+         * [scanLan] or [scanBluetooth] to populate its host list in real time.
+         */
+        @Volatile var pendingHostCallback: ((LanHost) -> Unit)? = null
 
         private const val EXTRA_PLAYER_NAME = "player_name"
         private const val EXTRA_HOST_IP = "host_ip"
@@ -85,6 +101,19 @@ class JoinGameService : Service() {
         }
 
         /**
+         * Scan nearby Bluetooth devices for active game hosts.
+         * Probes bonded and discovered devices via RFCOMM HELLO/ACK.
+         */
+        fun scanBluetooth(context: Context, playerName: String) {
+            val intent = Intent(context, JoinGameService::class.java).apply {
+                putExtra(EXTRA_PLAYER_NAME, playerName)
+                putExtra(EXTRA_TRANSPORT, Protocol.TRANSPORT_BLUETOOTH)
+                action = ACTION_SCAN_BLUETOOTH
+            }
+            context.startService(intent)
+        }
+
+        /**
          * Connect to a Bluetooth host by MAC address.
          */
         fun connectBluetooth(context: Context, playerName: String, btAddress: String) {
@@ -104,6 +133,7 @@ class JoinGameService : Service() {
         private const val ACTION_JOIN_WIFI = "com.turbolego.songguesser.action.JOIN_WIFI"
         private const val ACTION_JOIN_BLUETOOTH = "com.turbolego.songguesser.action.JOIN_BLUETOOTH"
         private const val ACTION_SCAN_LAN = "com.turbolego.songguesser.action.SCAN_LAN"
+        private const val ACTION_SCAN_BLUETOOTH = "com.turbolego.songguesser.action.SCAN_BLUETOOTH"
     }
 
     // ── State ────────────────────────────────────────────────────────────
@@ -135,6 +165,10 @@ class JoinGameService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        pendingListener?.let {
+            networkListener = it
+            pendingListener = null
+        }
         Log.d(TAG, "onCreate")
     }
 
@@ -165,6 +199,9 @@ class JoinGameService : Service() {
             }
             ACTION_SCAN_LAN -> {
                 serviceScope.launch { scanLanForHosts() }
+            }
+            ACTION_SCAN_BLUETOOTH -> {
+                serviceScope.launch { scanBluetoothForHosts() }
             }
             else -> {
                 Log.w(TAG, "Unknown action: ${intent?.action}")
@@ -238,6 +275,7 @@ class JoinGameService : Service() {
                                 discoveredHosts.add(host)
                             }
                             networkListener?.onServiceRegistered(host.hostName)
+                            pendingHostCallback?.invoke(host)
                             Log.d(TAG, "Found host: ${host.hostName} at $ip")
                         }
                         val done = scannedCount.incrementAndGet()
@@ -336,7 +374,9 @@ class JoinGameService : Service() {
         val ip: String,
         val port: Int,
         val playerCount: Int,
-        val tlsSpkiHash: String? = null
+        val tlsSpkiHash: String? = null,
+        /** MAC address when discovered via Bluetooth; null for Wi-Fi. */
+        val btAddress: String? = null
     )
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -390,7 +430,7 @@ class JoinGameService : Service() {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // Bluetooth: RFCOMM connection
+    // Bluetooth: RFCOMM connection & scanning
     // ═══════════════════════════════════════════════════════════════════════
 
     @Suppress("MissingPermission")
@@ -421,6 +461,146 @@ class JoinGameService : Service() {
             networkListener?.onNetworkError("Bluetooth-feil: ${e.message}")
         }
     }
+
+    /**
+     * Scan for Bluetooth devices running GuessTheSongYear hosts.
+     *
+     * Probes bonded devices first, then starts device discovery for 12 seconds.
+     * Each candidate device is probed via RFCOMM: send HELLO, expect ACK with host info.
+     * Discovered hosts are reported via [networkListener] callbacks.
+     */
+    @Suppress("MissingPermission")
+    private suspend fun scanBluetoothForHosts() {
+        Log.d(TAG, "scanBluetoothForHosts")
+        networkListener?.onHostingStatus("Søker etter Bluetooth-verter...")
+
+        val adapter = BluetoothAdapter.getDefaultAdapter()
+        if (adapter == null) {
+            networkListener?.onHostingStatus("Bluetooth støttes ikke")
+            return
+        }
+        if (!adapter.isEnabled) {
+            networkListener?.onHostingStatus("Bluetooth er ikke slått på")
+            return
+        }
+
+        val foundHosts = mutableListOf<LanHost>()
+        val probedAddresses = mutableSetOf<String>()
+
+        // 1) Probe already-bonded devices (quick, no discovery needed)
+        val bonded = adapter.bondedDevices?.toList() ?: emptyList()
+        for (device in bonded) {
+            if (!serviceScope.isActive) break
+            val host = probeBtDevice(device)
+            if (host != null && probedAddresses.add(device.address)) {
+                foundHosts.add(host)
+                networkListener?.onServiceRegistered(host.hostName)
+                pendingHostCallback?.invoke(host)
+                Log.d(TAG, "Found BT host (bonded): ${host.hostName} @ ${device.address}")
+            }
+        }
+
+        // 2) Start discovery for non-bonded devices (only if nothing found)
+        if (foundHosts.isEmpty()) {
+            networkListener?.onHostingStatus("Søker etter Bluetooth-verter... (oppdager enheter)")
+
+            val discoveredDevices = mutableListOf<BluetoothDevice>()
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    when (intent.action) {
+                        BluetoothDevice.ACTION_FOUND -> {
+                            @Suppress("DEPRECATION")
+                            val device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE) as? BluetoothDevice
+                            if (device != null && bonded.none { it.address == device.address }) {
+                                discoveredDevices.add(device)
+                            }
+                        }
+                    }
+                }
+            }
+
+            val filter = IntentFilter().apply {
+                addAction(BluetoothDevice.ACTION_FOUND)
+                addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
+            }
+
+            try {
+                registerReceiver(receiver, filter)
+                adapter.startDiscovery()
+
+                // Allow collection for 12 seconds
+                delay(12_000)
+
+                adapter.cancelDiscovery()
+
+                // Probe the newly discovered devices
+                for (device in discoveredDevices) {
+                    if (!serviceScope.isActive) break
+                    if (probedAddresses.contains(device.address)) continue
+                    val host = probeBtDevice(device)
+                    if (host != null && probedAddresses.add(device.address)) {
+                        foundHosts.add(host)
+                        networkListener?.onServiceRegistered(host.hostName)
+                        pendingHostCallback?.invoke(host)
+                        Log.d(TAG, "Found BT host (discovered): ${host.hostName} @ ${device.address}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "BT discovery error", e)
+            } finally {
+                try { unregisterReceiver(receiver) } catch (_: Exception) {}
+            }
+        }
+
+        // 3) Report final status
+        if (foundHosts.isEmpty()) {
+            networkListener?.onHostingStatus("Fant ingen Bluetooth-verter")
+        } else {
+            networkListener?.onHostingStatus("Fant ${foundHosts.size} vert(er) via Bluetooth")
+        }
+    }
+
+    /**
+     * Probe a single Bluetooth device to see if it is hosting a GuessTheSongYear game.
+     *
+     * Connects via RFCOMM, sends HELLO, expects ACK with host info.
+     * Returns a [LanHost] on success, null on timeout or failure.
+     */
+    @Suppress("MissingPermission")
+    private suspend fun probeBtDevice(device: BluetoothDevice): LanHost? =
+        withContext(Dispatchers.IO) {
+            val sock = try {
+                device.createRfcommSocketToServiceRecord(BT_UUID)
+            } catch (e: Exception) {
+                return@withContext null
+            }
+            try {
+                withTimeout(5000) { sock.connect() }
+
+                val reader = BufferedReader(InputStreamReader(sock.inputStream, Charsets.UTF_8))
+                val writer = PrintWriter(sock.outputStream, true)
+
+                val hello = Protocol.buildJson {
+                    put(Protocol.FIELD_TYPE, Protocol.MSG_HELLO)
+                }
+                writer.println(hello.toString())
+
+                val line = reader.readLine()
+                val msg = line?.let { Protocol.tryParse(it) }
+                if (msg?.optString(Protocol.FIELD_TYPE) == Protocol.MSG_ACK) {
+                    val hostName = msg.optString(Protocol.FIELD_HOST_NAME, "Vert")
+                    val playersJson = msg.optJSONArray(Protocol.FIELD_PLAYERS)
+                    val playerCount = playersJson?.length() ?: 0
+                    LanHost(hostName, device.address, 0, playerCount, btAddress = device.address)
+                } else {
+                    null
+                }
+            } catch (e: Exception) {
+                null
+            } finally {
+                try { sock.close() } catch (_: Exception) {}
+            }
+        }
 
     // ═══════════════════════════════════════════════════════════════════════
     // Connection lifecycle (shared between TCP and BT)

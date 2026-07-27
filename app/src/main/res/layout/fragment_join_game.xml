@@ -77,15 +77,26 @@
         app:layout_constraintStart_toEndOf="@+id/textInputLayoutHostIp"
         app:layout_constraintTop_toTopOf="@+id/textInputLayoutHostIp" />
 
-    <!-- Refresh + Connect row -->
+    <!-- Scan row: LAN refresh + Connect + Bluetooth scan -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/buttonRefreshScan"
         android:layout_width="0dp"
         android:layout_height="48dp"
         android:layout_marginTop="8dp"
         android:text="@string/join_scan_button"
-        app:layout_constraintEnd_toStartOf="@+id/buttonConnect"
+        app:layout_constraintEnd_toStartOf="@+id/buttonScanBluetooth"
         app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textInputLayoutHostIp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonScanBluetooth"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="@string/join_scan_bt_button"
+        app:layout_constraintEnd_toStartOf="@+id/buttonConnect"
+        app:layout_constraintStart_toEndOf="@+id/buttonRefreshScan"
         app:layout_constraintTop_toBottomOf="@+id/textInputLayoutHostIp" />
 
     <com.google.android.material.button.MaterialButton
@@ -96,7 +107,7 @@
         android:layout_marginTop="8dp"
         android:text="@string/join_connect_button"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/buttonRefreshScan"
+        app:layout_constraintStart_toEndOf="@+id/buttonScanBluetooth"
         app:layout_constraintTop_toBottomOf="@+id/textInputLayoutHostIp" />
 
     <!-- Connection status -->

@@ -411,12 +411,28 @@ class HostGameService : Service() {
             val reader = BufferedReader(InputStreamReader(btSocket.inputStream, Charsets.UTF_8))
             val writer = PrintWriter(btSocket.outputStream, true)
 
-            val joinLine = readLineBounded(reader) ?: return
-            val joinMsg = Protocol.tryParse(joinLine) ?: return
-            if (joinMsg.optString(Protocol.FIELD_TYPE) != Protocol.MSG_JOIN) return
+            val firstLine = readLineBounded(reader) ?: return
+            val firstMsg = Protocol.tryParse(firstLine) ?: return
+
+            val firstType = firstMsg.optString(Protocol.FIELD_TYPE)
+
+            // HELLO: respond immediately with host info, then close
+            if (firstType == Protocol.MSG_HELLO) {
+                val ackMsg = Protocol.buildJson {
+                    put(Protocol.FIELD_TYPE, Protocol.MSG_ACK)
+                    put(Protocol.FIELD_HOST_NAME, hostName)
+                    put(Protocol.FIELD_PLAYERS, JSONArray(getAllPlayerNames()))
+                }
+                writer.println(ackMsg.toString())
+                try { btSocket.close() } catch (_: IOException) {}
+                return
+            }
+
+            // Not JOIN — bail
+            if (firstType != Protocol.MSG_JOIN) return
 
             val connId = nextConnId.getAndIncrement()
-            val playerName = joinMsg.optString(Protocol.FIELD_PLAYER, "Ukjent")
+            val playerName = firstMsg.optString(Protocol.FIELD_PLAYER, "Ukjent")
 
             // Close existing connection for same player name
             playerConnections.remove(playerName)?.let { oldConnId ->
