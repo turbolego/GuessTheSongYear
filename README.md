@@ -4,6 +4,8 @@
 
 No accounts. No ads. No tracking. Just music and guessing.
 
+> 🛡️ **Development environment security verified:** 2026-07-28 — build machine hardened (UFW, fail2ban, tirith, key-only auth pending final step)
+
 ---
 
 ## 🎮 How the Game Works
