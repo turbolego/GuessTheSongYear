@@ -250,7 +250,7 @@ class VideoPlayerFragment : Fragment() {
         return null
     }
 
-    private fun playVideo(videoId: String, year: Int = 0, title: String = \"\") {
+    private fun playVideo(videoId: String, year: Int = 0, title: String = "") {
         currentVideoId = videoId
         currentVideoYear = year
         currentVideoTitle = title
