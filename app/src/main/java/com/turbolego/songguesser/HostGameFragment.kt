@@ -1,8 +1,10 @@
 package com.turbolego.songguesser
 
 import android.Manifest
+import android.bluetooth.BluetoothAdapter
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
@@ -121,18 +123,24 @@ class HostGameFragment : Fragment(), GameNetworkListener {
             return
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(
-                    requireContext(),
-                    Manifest.permission.BLUETOOTH_ADVERTISE
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                requestPermissions(
-                    arrayOf(Manifest.permission.BLUETOOTH_ADVERTISE),
-                    REQUEST_BLUETOOTH_ADVERTISE
-                )
+            val neededPerms = arrayOf(
+                Manifest.permission.BLUETOOTH_ADVERTISE,
+                Manifest.permission.BLUETOOTH_CONNECT,
+            )
+            val missing = neededPerms.filter {
+                ContextCompat.checkSelfPermission(requireContext(), it) != PackageManager.PERMISSION_GRANTED
+            }
+            if (missing.isNotEmpty()) {
+                requestPermissions(missing.toTypedArray(), REQUEST_BLUETOOTH_ADVERTISE)
                 return
             }
         }
+
+        // Request discoverability so non-bonded joiners can find us
+        val discoverableIntent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
+            putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
+        }
+        startActivity(discoverableIntent)
 
         joinedPlayers.clear()
         playerAdapter?.notifyDataSetChanged()

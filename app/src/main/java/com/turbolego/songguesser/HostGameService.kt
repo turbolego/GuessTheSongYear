@@ -1,5 +1,6 @@
 package com.turbolego.songguesser
 
+import android.annotation.SuppressLint
 import android.app.Service
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothServerSocket
@@ -547,6 +548,7 @@ class HostGameService : Service() {
     // BLUETOOTH TRANSPORT
     // ═══════════════════════════════════════════════════════════════════════
 
+    @SuppressLint("MissingPermission")
     private fun startBluetooth() {
         Log.d(TAG, "startBluetooth")
         val adapter = BluetoothAdapter.getDefaultAdapter()
@@ -578,6 +580,7 @@ class HostGameService : Service() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private suspend fun acceptBluetoothClients(btSock: BluetoothServerSocket) {
         try {
             while (serviceScope.isActive) {

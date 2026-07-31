@@ -447,7 +447,10 @@ class JoinGameService : Service() {
             val device = adapter.getRemoteDevice(address)
             val btSock = device.createRfcommSocketToServiceRecord(BT_UUID)
             adapter.cancelDiscovery()
-            btSock.connect()
+            // Connect on a dedicated thread so withTimeout can cancel the coroutine
+            withTimeout(Protocol.CONNECT_TIMEOUT_MS.toLong()) {
+                withContext(Dispatchers.IO) { btSock.connect() }
+            }
             btSocket = btSock
             Log.d(TAG, "Bluetooth connected to ${device.name}")
 
@@ -456,6 +459,9 @@ class JoinGameService : Service() {
                 BufferedReader(InputStreamReader(btSock.inputStream, Charsets.UTF_8)),
                 PrintWriter(btSock.outputStream, true)
             )
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "Bluetooth connection timed out", e)
+            networkListener?.onNetworkError("Bluetooth-timeout: tilkobling tok for lang tid")
         } catch (e: Exception) {
             Log.e(TAG, "Bluetooth connection failed", e)
             networkListener?.onNetworkError("Bluetooth-feil: ${e.message}")
