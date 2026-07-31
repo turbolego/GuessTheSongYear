@@ -6,13 +6,13 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
-import androidx.appcompat.app.AppCompatActivity
 import com.turbolego.songguesser.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -21,10 +21,6 @@ class MainActivity : AppCompatActivity() {
     private var currentFragment: androidx.fragment.app.Fragment? = null
 
     private var currentDifficulty: Difficulty = Difficulty.MEDIUM
-
-    companion object {
-        @Volatile var activeFragment: VideoPlayerFragment? = null
-    }
 
     val videoPlayerFragment: VideoPlayerFragment?
         get() = currentFragment as? VideoPlayerFragment
@@ -38,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     // ── Lifecycle ───────────────────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -284,10 +281,4 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showFragment(fragment: androidx.fragment.app.Fragment) {
-        currentFragment = fragment
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, fragment)
-            .commit()
-    }
 }
