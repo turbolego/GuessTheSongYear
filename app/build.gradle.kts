@@ -17,10 +17,28 @@ android {
         applicationId = "com.turbolego.songguesser"
         minSdk = 24
         targetSdk = 37
-        versionCode = 98
-        versionName = "1.0.98"
+        // versionCode: derived from GITHUB_RUN_NUMBER in CI, falls back to 1 locally
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionName = System.getenv("GITHUB_REF_NAME")?.removePrefix("v") ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            // CI: read from environment variables (set by workflow)
+            // Local: falls back to app/keystore/songguesser-upload-keystore.jks (gitignored)
+            storeFile = providers.environmentVariable("STORE_FILE")
+                .map { rootProject.file(it) }
+                .orElse(rootProject.file("app/keystore/songguesser-upload-keystore.jks"))
+                .orNull
+            storePassword = providers.environmentVariable("STORE_PASSWORD").orElse("").orNull
+            keyAlias = providers.environmentVariable("KEY_ALIAS").orElse("").orNull
+            keyPassword = providers.environmentVariable("KEY_PASSWORD")
+                .orElse(providers.environmentVariable("STORE_PASSWORD"))
+                .orElse("")
+                .orNull
+        }
     }
 
     buildTypes {
@@ -34,15 +52,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Signing from env vars for CI (local builds use debug.keystore if unset)
-            if (System.getenv("ANDROID_KEYSTORE_BASE64") != null) {
-                signingConfig = signingConfigs.create("release") {
-                    storeFile = rootProject.file(".ci-keystore.jks")
-                    storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                    keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-                    keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
-                }
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -64,6 +74,13 @@ android {
                 "META-INF/INDEX.LIST",
                 "*.kotlin_module"
             )
+        }
+    }
+
+    // Generate an AAB (Android App Bundle) by default for Play Store
+    bundle {
+        language {
+            enableSplit = false
         }
     }
 }
