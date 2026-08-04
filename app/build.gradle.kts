@@ -24,23 +24,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    signingConfigs {
-        create("release") {
-            // CI: read from environment variables (set by workflow)
-            // Local: falls back to app/keystore/songguesser-upload-keystore.jks (gitignored)
-            storeFile = providers.environmentVariable("STORE_FILE")
-                .map { rootProject.file(it) }
-                .orElse(rootProject.file("app/keystore/songguesser-upload-keystore.jks"))
-                .orNull
-            storePassword = providers.environmentVariable("STORE_PASSWORD").orElse("").orNull
-            keyAlias = providers.environmentVariable("KEY_ALIAS").orElse("").orNull
-            keyPassword = providers.environmentVariable("KEY_PASSWORD")
-                .orElse(providers.environmentVariable("STORE_PASSWORD"))
-                .orElse("")
-                .orNull
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -52,7 +35,21 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            // Signing only enabled when STORE_FILE is set (signed AAB publish jobs).
+            // PR builds and local dev builds skip this — assembleRelease produces
+            // an unsigned APK that can be distributed as-is.
+            val storeFile = providers.environmentVariable("STORE_FILE").orNull
+            if (storeFile != null) {
+                signingConfig = signingConfigs.create("release") {
+                    this.storeFile = rootProject.file(storeFile)
+                    storePassword = providers.environmentVariable("STORE_PASSWORD").orElse("").get()
+                    keyAlias = providers.environmentVariable("KEY_ALIAS").orElse("").get()
+                    keyPassword = providers.environmentVariable("KEY_PASSWORD")
+                        .orElse(providers.environmentVariable("STORE_PASSWORD"))
+                        .orElse("")
+                        .get()
+                }
+            }
         }
     }
 
