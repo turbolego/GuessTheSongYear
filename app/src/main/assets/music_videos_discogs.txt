@@ -20,7 +20,7 @@ nrvsxWaq_6U,2015,Field Music - Music For Drifters
 6367579,2014,Various - The Music Of Grand Theft Auto V (Original Music; S
 6052844,2014,The Fratellis - Costello Music
 0X5_FaijLVo,2013,OdD Music - OdD Music 001
-5167490,2013,Stardust - Music Sounds Better With You
+FQlAEiCb8m0,2013,Stardust - Music Sounds Better With You
 4268163,2013,Jennifer Lara - Music By The Score
 lCn78TRwsRI,2011,Anthrax - Worship Music
 -JV3dPrR0PY,2010,Field Music - Field Music (Measure)
@@ -47,7 +47,7 @@ sD9gA2hJZG4,1994,Mariah Carey - Music Box
 sD9gA2hJZG4,1994,Mariah Carey - Music Box
 aYM8E2OtJ8w,1991,Ammonia (3) - Music; Music
 woUt7wPe8Ow,1990,Angelo Badalamenti - Music From Twin Peaks
-r2Z2cSYWvdE,1990,Master Ace* - Music Man
+323581,1990,Master Ace* - Music Man
 131045,1990,Rebel MC - Rebel Music
 wAZWt1FSeL0,1989,S'Xpress* - Hey Music Lover
 GD19i9Yig5Y,1989,The Prince Of Dance Music; L.B. Bad - The True Story Of Hous
@@ -56,10 +56,10 @@ hRzGzRqNj58,1988,Bryan Ferry / Roxy Music - Bryan Ferry - The Ultimate Collec
 GWNsZPXq7Sw,1988,Roxy Music - Roxy Music
 GWNsZPXq7Sw,1987,Roxy Music - Roxy Music
 G6vYP-sBmEs,1987,Picture Music - Picture Music
-wQRvrkSj5rA,1987,Zakir Hussain; Hariprasad Chaurasia; John McLaughlin; Jan Ga
-36203,1986,Mantronix - Music Madness
-1525378,1986,Bob Marley And The Wailers* - Rebel Music
-2534664,1986,Joan Jett And The Blackhearts* - Good Music
+1461239,1987,Zakir Hussain; Hariprasad Chaurasia; John McLaughlin; Jan Ga
+VAOJUp2Idl4,1986,Mantronix - Music Madness
+9_iOdx9cYBg,1986,Bob Marley And The Wailers* - Rebel Music
+6jLa96NxbG8,1986,Joan Jett And The Blackhearts* - Good Music
 M6WfM0cXWSQ,1982,Alabama - Mountain Music
 M6WfM0cXWSQ,1982,Alabama - Mountain Music
 4CwUrxX16js,1982,Raw Silk - Do It To The Music
@@ -67,7 +67,7 @@ wFnh2ygSqEQ,1981,Colored Music - Colored Music
 6k6Gte6ibPk,1981,The Strikers - Body Music
 ZqX3SO7ownY,1980,Various - 415 Music
 KlgJe37ms-U,1980,Waylon Jennings - Music Man
-GWNsZPXq7Sw,1978,Roxy Music - Roxy Music
+2548753,1978,Roxy Music - Roxy Music
 1164585,1978,Steve Reich - Music For 18 Musicians
 2009390,1978,Brian Eno - Discreet Music
 GWNsZPXq7Sw,1977,Roxy Music - Roxy Music
@@ -80,10 +80,10 @@ GWNsZPXq7Sw,1974,Roxy Music - Roxy Music
 I3HigxbwgIM,1974,Roxy Music - Country Life (The 4th Roxy Music Album)
 pBNZevgJH1g,1974,War - All Day Music
 GWNsZPXq7Sw,1973,Roxy Music - Roxy Music
-2994613,1973,Dr. Music - Dr. Music
+O-iICqJcx1A,1973,Dr. Music - Dr. Music
 GWNsZPXq7Sw,1972,Roxy Music - Roxy Music
-GWNsZPXq7Sw,1972,Roxy Music - Roxy Music
-GWNsZPXq7Sw,1972,Roxy Music - Roxy Music
+1048979,1972,Roxy Music - Roxy Music
+2385857,1972,Roxy Music - Roxy Music
 CGsmM-klyZ8,1969,Music Emporium - Music Emporium
 CGsmM-klyZ8,1969,Music Emporium - Music Emporium
 Dq7jhla2Y-I,1969,Various - Music Box
@@ -95,12 +95,12 @@ kSTDPxzB21M,1967,Steve Reich / Richard Maxfield / Pauline Oliveros - New Soun
 Bgm9Owb7ZDc,1967,Anne Rogers And Patricia Routledge - The Sound Of Music
 UKh2oz6zstY,1966,The Music Machine - (Turn On) The Music Machine
 UKh2oz6zstY,1966,The Music Machine - (Turn On) The Music Machine
-121424,1966,John Cage / Luciano Berio / Ilhan Mimaroglu - Electronic Mus
+YAaSIpb9HmA,1966,John Cage / Luciano Berio / Ilhan Mimaroglu - Electronic Mus
 2359112,1965,Sound Of Music - Cast* - The Sound Of Music
-653078,1965,Rodgers And Hammerstein* - Julie Andrews; Christopher Plumme
-2008790,1965,Living Strings - Music From "The Sound Of Music"
+j4oHYnQxyEw,1965,Rodgers And Hammerstein* - Julie Andrews; Christopher Plumme
+lR2JmxEZvho,1965,Living Strings - Music From "The Sound Of Music"
 489414,1964,New Music Ensemble - New Music Ensemble
-4MxlJUppVHQ,1964,Various - Columbia-Princeton Electronic Music Center
+606238,1964,Various - Columbia-Princeton Electronic Music Center
 4059875,1964,Rita Van Hoof - Lady Music
 5899562,1963,Original London Cast* - The Sound Of Music
 3989619,1963,Handel* –  Telemann Society* Conductor Richard Schulze - Wat
