@@ -30,6 +30,9 @@ jobs:
           mkdir -p app/keystore
           echo "$KEYSTORE_BASE64" | base64 -d > app/keystore/songguesser-upload-keystore.jks
 
+      - name: List keystore aliases
+        run: keytool -list -keystore app/keystore/songguesser-upload-keystore.jks -storepass "${{ secrets.STORE_PASSWORD }}" -v 2>&1 | grep -E "Alias name|Entry type"
+
       - name: Build AAB with Gradle
         env:
           STORE_FILE: app/keystore/songguesser-upload-keystore.jks
