@@ -67,8 +67,8 @@ wFnh2ygSqEQ,1981,Colored Music - Colored Music
 6k6Gte6ibPk,1981,The Strikers - Body Music
 ZqX3SO7ownY,1980,Various - 415 Music
 KlgJe37ms-U,1980,Waylon Jennings - Music Man
-2548753,1978,Roxy Music - Roxy Music
-1164585,1978,Steve Reich - Music For 18 Musicians
+GWNsZPXq7Sw,1978,Roxy Music - Roxy Music
+1oOmUi4HGt0,1978,Steve Reich - Music For 18 Musicians
 2009390,1978,Brian Eno - Discreet Music
 GWNsZPXq7Sw,1977,Roxy Music - Roxy Music
 GWNsZPXq7Sw,1977,Roxy Music - Roxy Music
@@ -81,11 +81,11 @@ I3HigxbwgIM,1974,Roxy Music - Country Life (The 4th Roxy Music Album)
 pBNZevgJH1g,1974,War - All Day Music
 GWNsZPXq7Sw,1973,Roxy Music - Roxy Music
 O-iICqJcx1A,1973,Dr. Music - Dr. Music
-GWNsZPXq7Sw,1972,Roxy Music - Roxy Music
+4001865,1972,Roxy Music - Roxy Music
 1048979,1972,Roxy Music - Roxy Music
 2385857,1972,Roxy Music - Roxy Music
-CGsmM-klyZ8,1969,Music Emporium - Music Emporium
-CGsmM-klyZ8,1969,Music Emporium - Music Emporium
+Oe_NUgVew3Q,1969,Music Emporium - Music Emporium
+Oe_NUgVew3Q,1969,Music Emporium - Music Emporium
 Dq7jhla2Y-I,1969,Various - Music Box
 FjuNuAtQ6YY,1968,The Bonniwell Music Machine* - The Bonniwell Music Machine
 uQPqe8oKlvk,1968,Sly & The Family Stone - Dance To The Music
@@ -97,10 +97,10 @@ UKh2oz6zstY,1966,The Music Machine - (Turn On) The Music Machine
 UKh2oz6zstY,1966,The Music Machine - (Turn On) The Music Machine
 YAaSIpb9HmA,1966,John Cage / Luciano Berio / Ilhan Mimaroglu - Electronic Mus
 2359112,1965,Sound Of Music - Cast* - The Sound Of Music
-j4oHYnQxyEw,1965,Rodgers And Hammerstein* - Julie Andrews; Christopher Plumme
-lR2JmxEZvho,1965,Living Strings - Music From "The Sound Of Music"
+653078,1965,Rodgers And Hammerstein* - Julie Andrews; Christopher Plumme
+2008790,1965,Living Strings - Music From "The Sound Of Music"
 489414,1964,New Music Ensemble - New Music Ensemble
-606238,1964,Various - Columbia-Princeton Electronic Music Center
+4MxlJUppVHQ,1964,Various - Columbia-Princeton Electronic Music Center
 4059875,1964,Rita Van Hoof - Lady Music
 5899562,1963,Original London Cast* - The Sound Of Music
 3989619,1963,Handel* –  Telemann Society* Conductor Richard Schulze - Wat
