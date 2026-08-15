@@ -20,6 +20,7 @@ object MultiPlayerManager {
     val allPlayers: List<Player> get() = players.toList()
 
     fun addPlayer(name: String): Boolean {
+        if (players.size >= GamePreferences.MAX_PLAYERS) return false
         if (players.any { it.name.equals(name, ignoreCase = true) }) return false
         if (name.isBlank()) return false
         players.add(Player(name))

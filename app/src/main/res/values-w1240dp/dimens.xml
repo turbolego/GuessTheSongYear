@@ -1,3 +1,10 @@
 <resources>
     <dimen name="fab_margin">200dp</dimen>
+    <dimen name="content_horizontal_padding">64dp</dimen>
+    <dimen name="content_vertical_padding">24dp</dimen>
+    <dimen name="content_vertical_padding_large">40dp</dimen>
+    <dimen name="video_max_height">520dp</dimen>
+    <dimen name="game_content_max_width">840dp</dimen>
+    <dimen name="year_input_width">160dp</dimen>
+    <dimen name="year_picker_width">240dp</dimen>
 </resources>

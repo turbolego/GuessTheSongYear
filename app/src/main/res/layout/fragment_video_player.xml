@@ -1,51 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/player_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:keepScreenOn="true"
-    android:orientation="vertical"
-    android:background="@color/ink">
+    android:background="@color/ink"
+    android:keepScreenOn="true">
 
-    <!-- ════════════════════════════════════════════════════════════════ -->
-    <!-- VIDEO AREA — YouTube IFrame Player API (official, Play Store)  -->
-    <!-- ════════════════════════════════════════════════════════════════ -->
     <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:background="@android:color/black">
+        android:id="@+id/video_container"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@android:color/black"
+        app:layout_constraintDimensionRatio="H,16:9"
+        app:layout_constraintHeight_max="@dimen/video_max_height"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
         <com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
             android:id="@+id/youtubePlayerView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             app:enableAutomaticInitialization="false" />
-
     </FrameLayout>
 
-    <!-- ════════════════════════════════════════════════════════════════ -->
-    <!-- CONTROLS AREA — NestedScrollView supports nested scrolling with  -->
-    <!-- RecyclerView so the player list can scroll properly              -->
-    <!-- ════════════════════════════════════════════════════════════════ -->
     <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
+        android:id="@+id/game_controls_scroll"
+        android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_weight="1"
+        android:clipToPadding="false"
         android:fillViewport="true"
-        android:clipToPadding="false">
+        app:layout_constraintTop_toBottomOf="@id/video_container"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:gravity="center_horizontal"
             android:orientation="vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="12dp"
-            android:paddingBottom="24dp"
-            android:gravity="center_horizontal">
+            android:paddingStart="@dimen/content_horizontal_padding"
+            android:paddingTop="@dimen/content_vertical_padding"
+            android:paddingEnd="@dimen/content_horizontal_padding"
+            android:paddingBottom="@dimen/content_vertical_padding_large">
 
-            <!-- Countdown (3-2-1 when loading next song) -->
             <TextView
                 android:id="@+id/textViewCountdown"
                 style="@style/CountdownText"
@@ -56,13 +58,13 @@
                 tools:text="3"
                 tools:visibility="visible" />
 
-            <!-- Song Info -->
             <TextView
                 android:id="@+id/textViewSongTitle"
                 style="@style/SongTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
+                android:maxWidth="@dimen/game_content_max_width"
                 tools:text="Shape of You" />
 
             <TextView
@@ -71,15 +73,26 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
+                android:maxWidth="@dimen/game_content_max_width"
                 android:paddingBottom="4dp"
                 tools:text="Ed Sheeran" />
 
-            <!-- Score + Streak (single-player) / Leaderboard (multiplayer) -->
+            <TextView
+                android:id="@+id/textViewArcadeTurn"
+                style="@style/FeedbackText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:maxWidth="@dimen/game_content_max_width"
+                android:visibility="gone"
+                tools:text="Alex's turn"
+                tools:visibility="visible" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
                 android:gravity="center"
+                android:orientation="horizontal"
                 android:paddingBottom="4dp">
 
                 <TextView
@@ -99,11 +112,10 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:visibility="gone"
-                    tools:text="🏆 Runde 1/10"
+                    tools:text="Runde 1/10"
                     tools:visibility="visible" />
             </LinearLayout>
 
-            <!-- Progress (loading) -->
             <ProgressBar
                 android:id="@+id/progressBar"
                 style="?android:attr/progressBarStyleSmall"
@@ -112,18 +124,17 @@
                 android:layout_gravity="center"
                 android:visibility="gone" />
 
-            <!-- Guess Input Row (single-player) -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
                 android:gravity="center"
+                android:orientation="horizontal"
                 android:paddingTop="8dp">
 
                 <EditText
                     android:id="@+id/editTextGuess"
                     style="@style/GuessInput"
-                    android:layout_width="120dp"
+                    android:layout_width="@dimen/year_input_width"
                     android:layout_height="48dp"
                     android:gravity="center"
                     android:hint="@string/edit_guess_hint"
@@ -143,48 +154,45 @@
                     android:text="@string/submit_guess" />
             </LinearLayout>
 
-            <!-- Year Picker Button -->
             <Button
                 android:id="@+id/buttonYearPicker"
                 style="@style/SecondaryButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Velg år" />
+                android:text="@string/select_year" />
 
-            <!-- Year NumberPicker — appears between edit text and feedback -->
             <NumberPicker
                 android:id="@+id/numberPickerYear"
-                android:layout_width="180dp"
+                android:layout_width="@dimen/year_picker_width"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:gravity="center"
                 android:visibility="gone" />
 
-            <!-- Feedback -->
             <TextView
                 android:id="@+id/textViewFeedback"
                 style="@style/FeedbackText"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
+                android:gravity="center"
                 android:layout_marginTop="12dp"
+                android:maxWidth="@dimen/game_content_max_width"
                 android:visibility="gone"
                 tools:text="Korrekt! (+50 poeng)"
                 tools:visibility="visible" />
 
-            <!-- Hint -->
             <TextView
                 android:id="@+id/textViewHint"
                 style="@style/FeedbackText"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
+                android:gravity="center"
+                android:maxWidth="@dimen/game_content_max_width"
                 android:visibility="gone"
-                tools:text="💡 Tiår: 2010-tallet"
+                tools:text="Tiår: 2010-tallet"
                 tools:visibility="visible" />
 
-            <!-- Next Video / Reveal Answers / YouTube fallback buttons -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -213,24 +221,23 @@
                     style="@style/SecondaryButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="▶ Åpne i YouTube"
-                    android:visibility="gone"
+                    android:backgroundTint="@color/amber_accent"
+                    android:text="@string/watch_on_youtube"
                     android:textColor="@color/ink"
-                    android:backgroundTint="@color/amber_accent" />
+                    android:visibility="gone" />
             </LinearLayout>
 
-            <!-- Blocked-video info -->
             <TextView
                 android:id="@+id/textViewBlockedInfo"
                 style="@style/MutedText"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
+                android:gravity="center"
+                android:maxWidth="@dimen/game_content_max_width"
                 android:paddingTop="4dp"
                 android:visibility="gone"
-                tools:text="⚠ Videoen kan ikke spilles av i appen. Trykk 'Åpne i YouTube' for å se den." />
+                tools:text="Videoen kan ikke spilles av i appen. Trykk Åpne i YouTube." />
 
-            <!-- Network Client Label -->
             <TextView
                 android:id="@+id/textViewClientLabel"
                 style="@style/MutedText"
@@ -242,19 +249,17 @@
                 tools:text="Venter på vert..."
                 tools:visibility="visible" />
 
-            <!-- Multiplayer: Player Guess list (inside NestedScrollView) -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recyclerViewPlayers"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:nestedScrollingEnabled="false"
                 android:visibility="gone"
-                android:nestedScrollingEnabled="true"
                 tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
                 tools:listItem="@layout/item_player_guess"
-                tools:visibility="visible"
-                tools:itemCount="4" />
+                tools:visibility="visible" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

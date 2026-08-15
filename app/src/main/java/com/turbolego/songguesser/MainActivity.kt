@@ -131,6 +131,10 @@ class MainActivity : AppCompatActivity() {
                 navigateToSettings()
                 true
             }
+            R.id.action_player_stats -> {
+                navigateToPlayerStats()
+                true
+            }
             R.id.action_debug_youtube -> {
                 navigateToDebugYouTube()
                 true
@@ -230,6 +234,16 @@ class MainActivity : AppCompatActivity() {
             .addToBackStack("settings")
             .commit()
         supportActionBar?.title = getString(R.string.menu_settings)
+    }
+
+    private fun navigateToPlayerStats() {
+        val frag = PlayerStatsFragment()
+        currentFragment = frag
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack("player_stats")
+            .commit()
+        supportActionBar?.title = getString(R.string.player_stats_title)
     }
 
     private fun navigateToDebugYouTube() {

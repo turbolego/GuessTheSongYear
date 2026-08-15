@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.regex.Pattern
+import kotlin.random.Random
 
 /**
  * Provides random YouTube video IDs from either the default asset file
@@ -153,6 +154,40 @@ object VideoProvider {
         }
         val pool = if (year != null) yearIndex[year] else cachedVideos
         return pool?.randomOrNull()
+    }
+
+    /**
+     * Game-aware entry selection. Custom URL lists have no reliable release-year
+     * metadata, so they remain uniformly randomized regardless of the selected
+     * probability mode.
+     */
+    fun getRandomVideoEntry(context: Context): VideoEntry? {
+        if (cachedVideos.isEmpty()) return null
+        if (loadedFromCustom) return cachedVideos.randomOrNull()
+
+        val year = when (GamePreferences.randomizationMode(context)) {
+            RandomizationMode.PURE_RANDOM -> allYears.randomOrNull()
+            RandomizationMode.PRIORITIZE_MODERN ->
+                YearRandomizer.prioritizeModernYears(availableYears = allYears)
+            RandomizationMode.CUSTOM -> pickCustomWeightedYear(GamePreferences.decadeWeights(context))
+        }
+        return yearIndex[year]?.randomOrNull() ?: cachedVideos.randomOrNull()
+    }
+
+    private fun pickCustomWeightedYear(weights: Map<Int, Int>): Int? {
+        val candidates = allYears.filter { year ->
+            val decade = (year / 10) * 10
+            (weights[decade] ?: 0) > 0
+        }
+        if (candidates.isEmpty()) return allYears.randomOrNull()
+
+        val totalWeight = candidates.sumOf { year -> weights[(year / 10) * 10] ?: 0 }
+        var remaining = Random.nextInt(totalWeight)
+        for (year in candidates) {
+            remaining -= weights[(year / 10) * 10] ?: 0
+            if (remaining < 0) return year
+        }
+        return candidates.last()
     }
 
     fun getAvailableYears(): List<Int> = allYears

@@ -47,6 +47,11 @@ Messages exchanged between host and joiners are **HMAC-SHA256 signed** using a p
 - 🎵 **~40 music videos spanning decades** — from 80s classics to modern hits
 - 🎯 **Three difficulty levels** with different year ranges and score multipliers
 - 📊 **Streak system** — correct guesses build a streak for bonus points, wrong guesses reset it
+- 🕹️ **Classic and Arcade local multiplayer** — either everyone guesses together or players rotate one turn at a time
+- 👥 **Remembered party setup** — two to eight named players persist between games
+- 🎚️ **Configurable song distribution** — choose pure random, modern-prioritized, or custom decade weights
+- 📈 **Persistent player statistics** — review guesses, exact answers, and points from the toolbar
+- 📐 **Responsive game surfaces** — 16:9 playback and adaptive spacing scale from phones to tablets
 - 🔊 **Listen-only mode** — the video overlay with the video opens and manages YouTube externally
 - 🌓 **Dark theme** with amber accent, Material3 design
 - 🔤 **Norwegian ←→ English UI** — switch language from the toolbar
@@ -123,7 +128,8 @@ All network messages are newline-delimited JSON over a reliable transport (TCP o
 ## 🧪 Testing
 
 ```bash
-./gradlew test               # Unit tests
+./gradlew test               # JVM unit tests
+./gradlew connectedAndroidTest # Device/emulator end-to-end gameplay and accessibility tests
 ./gradlew assembleDebug      # Debug APK
 ./gradlew assembleRelease    # Release APK (unsigned, requires signing config)
 ```

@@ -32,11 +32,13 @@ class MultiplayerSetupFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         MultiPlayerManager.clear()
+        GamePreferences.playerNames(requireContext()).forEach(MultiPlayerManager::addPlayer)
 
         playerAdapter = PlayerSetupAdapter(
             players = MultiPlayerManager.allPlayers,
             onRemoveClick = { name ->
                 MultiPlayerManager.removePlayer(name)
+                persistPlayers()
                 refreshPlayerList()
             }
         )
@@ -54,6 +56,7 @@ class MultiplayerSetupFragment : Fragment() {
                 Toast.makeText(requireContext(), R.string.min_players, Toast.LENGTH_SHORT).show()
             } else {
                 val players = MultiPlayerManager.allPlayers
+                persistPlayers()
                 val activity = requireActivity() as? MainActivity
                 activity?.startMultiplayerGame(players)
             }
@@ -81,11 +84,16 @@ class MultiplayerSetupFragment : Fragment() {
                 } else if (!MultiPlayerManager.addPlayer(name)) {
                     Toast.makeText(requireContext(), "Spilleren finnes allerede", Toast.LENGTH_SHORT).show()
                 } else {
+                    persistPlayers()
                     refreshPlayerList()
                 }
             }
             .setNegativeButton(R.string.cancel, null)
             .show()
+    }
+
+    private fun persistPlayers() {
+        GamePreferences.savePlayerNames(requireContext(), MultiPlayerManager.allPlayers.map { it.name })
     }
 
     private fun refreshPlayerList() {

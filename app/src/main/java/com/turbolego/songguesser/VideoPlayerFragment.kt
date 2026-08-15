@@ -63,6 +63,7 @@ class VideoPlayerFragment : Fragment() {
 
     // Multiplayer
     private var isMultiplayer = false
+    private var gameMode: GameMode = GameMode.CLASSIC
     var playerNames: List<String> = emptyList() // internal for JoinGameFragment callback
     @JvmField var multiplayerAdapter: MultiplayerGuessAdapter? = null
     private var isNetworkClient = false
@@ -169,6 +170,8 @@ class VideoPlayerFragment : Fragment() {
             }
         }
 
+        gameMode = GamePreferences.gameMode(requireContext())
+
         setupListeners()
         if (isMultiplayer) setupMultiplayerUI()
         if (!isMultiplayer) updateScoreDisplay()
@@ -225,21 +228,33 @@ class VideoPlayerFragment : Fragment() {
 
     private fun pickNextEntry(): VideoProvider.VideoEntry? {
         // Try to get a weighted random entry, skipping blocked (embed-disabled) and played IDs
-        val entry = VideoProvider.getRandomVideoEntryWeighted()
-        if (entry != null && entry.id !in playedVideoIds && entry.id !in blockedVideoIds) {
+        val entry = VideoProvider.getRandomVideoEntry(requireContext())
+        if (entry != null && entry.id !in playedVideoIds && entry.id !in blockedVideoIds &&
+            !PlayHistory.contains(requireContext(), entry.id)
+        ) {
             return entry
         }
+        if (entry != null && (entry.id in playedVideoIds || PlayHistory.contains(requireContext(), entry.id))) {
+            duplicateSkipCount++
+            PlayHistory.recordDuplicateCandidate(requireContext())
+        }
 
-        // If weighted pick was a duplicate or blocked, try more picks
+        // If the first pick was unavailable, try more picks before reusing history.
         repeat(50) {
-            val alt = VideoProvider.getRandomVideoEntryWeighted()
-            if (alt != null && alt.id !in playedVideoIds && alt.id !in blockedVideoIds) {
+            val alt = VideoProvider.getRandomVideoEntry(requireContext())
+            if (alt != null && alt.id !in playedVideoIds && alt.id !in blockedVideoIds &&
+                !PlayHistory.contains(requireContext(), alt.id)
+            ) {
                 return alt
+            }
+            if (alt != null && (alt.id in playedVideoIds || PlayHistory.contains(requireContext(), alt.id))) {
+                duplicateSkipCount++
+                PlayHistory.recordDuplicateCandidate(requireContext())
             }
         }
 
-        // Fallback: try any that isn't blocked
-        val any = VideoProvider.getRandomVideoEntryWeighted()
+        // A small catalog may be exhausted. Prefer a playable entry over blocking the next round.
+        val any = VideoProvider.getRandomVideoEntry(requireContext())
         if (any != null && any.id !in blockedVideoIds) return any
 
         // All videos blocked — offer fallback
@@ -251,6 +266,7 @@ class VideoPlayerFragment : Fragment() {
         currentVideoYear = year
         currentVideoTitle = title
         playedVideoIds.add(videoId)
+        PlayHistory.record(requireContext(), videoId)
         hasGuessedThisRound = false
 
         // Reset UI
@@ -314,7 +330,12 @@ class VideoPlayerFragment : Fragment() {
         }
 
         // Next video button
-        binding.buttonNextVideo.setOnClickListener { loadNextVideo() }
+        binding.buttonNextVideo.setOnClickListener {
+            if (isMultiplayer && gameMode == GameMode.ARCADE) {
+                MultiPlayerManager.nextTurn()
+            }
+            loadNextVideo()
+        }
 
         // Reveal answers (multiplayer)
         binding.buttonRevealAnswers.setOnClickListener { revealMultiplayerAnswers() }
@@ -350,13 +371,21 @@ class VideoPlayerFragment : Fragment() {
     private fun beginGuessTimer() {
         guessJob?.cancel()
         binding.textViewCountdown.visibility = View.GONE
-        if (isMultiplayer) {
-            // In multiplayer, each player uses their own number picker via the adapter
+        if (isMultiplayer && gameMode == GameMode.CLASSIC) {
+            // In classic multiplayer, every player receives a picker in the list.
             binding.editTextGuess.visibility = View.GONE
             binding.buttonGuess.visibility = View.GONE
+            binding.buttonRevealAnswers.visibility = View.VISIBLE
             return
         }
+        if (isMultiplayer && gameMode == GameMode.ARCADE) {
+            val player = MultiPlayerManager.getCurrentPlayer()
+            binding.textViewArcadeTurn.text = getString(R.string.turn_of, player?.name ?: "?")
+            binding.textViewArcadeTurn.visibility = View.VISIBLE
+        }
+        binding.editTextGuess.visibility = View.VISIBLE
         binding.editTextGuess.isEnabled = true
+        binding.buttonGuess.visibility = View.VISIBLE
         binding.buttonYearPicker.visibility = View.VISIBLE
     }
 
@@ -392,8 +421,21 @@ class VideoPlayerFragment : Fragment() {
         hasGuessedThisRound = true
 
         val result = ScoreManager.evaluateGuess(guessedYear, videoYear, currentDifficulty)
-        score += result.pointsEarned
-        streak = if (result.pointsEarned > 0) streak + 1 else 0
+        if (isMultiplayer && gameMode == GameMode.ARCADE) {
+            val player = MultiPlayerManager.getCurrentPlayer()
+            if (player != null) {
+                MultiPlayerManager.recordGuess(player.name, guessedYear, videoYear, currentDifficulty)
+                PlayerStatistics.recordGuess(
+                    requireContext(), player.name, guessedYear, videoYear, result.pointsEarned
+                )
+            }
+        } else {
+            score += result.pointsEarned
+            streak = if (result.pointsEarned > 0) streak + 1 else 0
+            PlayerStatistics.recordGuess(
+                requireContext(), getString(R.string.app_name), guessedYear, videoYear, result.pointsEarned
+            )
+        }
 
         showAnswer(videoYear, guessedYear)
     }
@@ -422,6 +464,14 @@ class VideoPlayerFragment : Fragment() {
         if (!isMultiplayer) {
             updateScoreDisplay()
             binding.buttonNextVideo.visibility = View.VISIBLE
+        } else if (gameMode == GameMode.ARCADE) {
+            binding.buttonRevealAnswers.visibility = View.GONE
+            binding.buttonNextVideo.visibility = View.VISIBLE
+            val player = MultiPlayerManager.getCurrentPlayer()
+            if (player != null) {
+                binding.textViewArcadeTurn.text = getString(R.string.arcade_score_summary, player.name, player.score)
+                binding.textViewArcadeTurn.visibility = View.VISIBLE
+            }
         } else {
             binding.buttonRevealAnswers.visibility = View.VISIBLE
         }
@@ -506,25 +556,34 @@ class VideoPlayerFragment : Fragment() {
         updateScoreDisplay()
     }
 
-    fun getDuplicateCount(): Int = duplicateSkipCount
-    fun resetDuplicateTracker() { duplicateSkipCount = 0 }
+    fun getDuplicateCount(): Int = PlayHistory.duplicateCount(requireContext())
+    fun resetDuplicateTracker() {
+        duplicateSkipCount = 0
+        PlayHistory.clear(requireContext())
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // MULTIPLAYER
     // ═══════════════════════════════════════════════════════════════════════════
 
     private fun setupMultiplayerUI() {
-        binding.editTextGuess.visibility = View.GONE
-        binding.buttonGuess.visibility = View.GONE
         binding.textViewScore.visibility = View.GONE
         binding.buttonYearPicker.visibility = View.GONE
         binding.numberPickerYear.visibility = View.GONE
 
-        multiplayerAdapter = MultiplayerGuessAdapter(playerNames)
-        binding.recyclerViewPlayers.apply {
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = multiplayerAdapter
-            visibility = View.VISIBLE
+        if (gameMode == GameMode.ARCADE) {
+            binding.recyclerViewPlayers.visibility = View.GONE
+            binding.textViewArcadeTurn.text = getString(R.string.turn_of, MultiPlayerManager.getCurrentPlayerName())
+            binding.textViewArcadeTurn.visibility = View.VISIBLE
+        } else {
+            binding.editTextGuess.visibility = View.GONE
+            binding.buttonGuess.visibility = View.GONE
+            multiplayerAdapter = MultiplayerGuessAdapter(playerNames)
+            binding.recyclerViewPlayers.apply {
+                layoutManager = LinearLayoutManager(requireContext())
+                adapter = multiplayerAdapter
+                visibility = View.VISIBLE
+            }
         }
     }
 
@@ -535,6 +594,11 @@ class VideoPlayerFragment : Fragment() {
             val guessedYear = values.firstOrNull { it.first == playerName }?.second ?: 1992
             MultiPlayerManager.recordGuess(playerName, guessedYear, videoYear, currentDifficulty)
             val player = MultiPlayerManager.allPlayers.find { it.name == playerName }
+            player?.guessResult?.let { result ->
+                PlayerStatistics.recordGuess(
+                    requireContext(), playerName, guessedYear, videoYear, result.pointsEarned
+                )
+            }
             val resultText = player?.guessResult?.let { r ->
                 getString(R.string.score_earned, r.pointsEarned)
             } ?: ""

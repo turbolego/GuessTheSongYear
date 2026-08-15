@@ -6,30 +6,33 @@ import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.SeekBar
+import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.turbolego.songguesser.databinding.FragmentSettingsBinding
 
 /**
- * Settings screen where users choose between:
- * 1. "Use default list" — the curated asset file, refreshed via GitHub Actions
- * 2. "Use your own list" — paste YouTube URLs or video IDs
- *
- * Video IDs are extracted using regex that handles:
- *   - youtube.com/watch?v=VIDEO_ID
- *   - youtu.be/VIDEO_ID
- *   - youtube.com/embed/VIDEO_ID
- *   - youtube.com/shorts/VIDEO_ID
- *   - Bare 11-char video IDs
- *   - Comma, newline, or space separated
+ * Configures the curated YouTube source as well as the portable game mechanics
+ * shared with the web version. Spotify-account-only settings deliberately remain
+ * out of this screen because the Android edition uses a local video catalog.
  */
 class SettingsFragment : Fragment() {
 
     private var _binding: FragmentSettingsBinding? = null
     private val binding get() = _binding!!
 
+    private var workingWeights: Map<Int, Int> = emptyMap()
+    private val weightLabels = mutableMapOf<Int, TextView>()
+    private val weightSliders = mutableMapOf<Int, SeekBar>()
+    private var updatingWeightControls = false
+
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
     ): View {
         _binding = FragmentSettingsBinding.inflate(inflater, container, false)
         return binding.root
@@ -37,18 +40,16 @@ class SettingsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        // Load current settings
         loadCurrentSettings()
         setupListeners()
     }
 
     override fun onDestroyView() {
+        weightLabels.clear()
+        weightSliders.clear()
         _binding = null
         super.onDestroyView()
     }
-
-    // ── State ──────────────────────────────────────────────────────────────
 
     private fun loadCurrentSettings() {
         val context = requireContext()
@@ -58,39 +59,56 @@ class SettingsFragment : Fragment() {
         binding.editCustomList.setText(VideoProvider.getCustomListRaw(context))
         updateCustomListVisibility()
 
-        // Validate current custom list on load
-        val raw = binding.editCustomList.text.toString()
-        if (raw.isNotBlank()) {
-            updateValidation(raw)
+        when (GamePreferences.gameMode(context)) {
+            GameMode.CLASSIC -> binding.radioClassic.isChecked = true
+            GameMode.ARCADE -> binding.radioArcade.isChecked = true
         }
+
+        when (GamePreferences.randomizationMode(context)) {
+            RandomizationMode.PURE_RANDOM -> binding.radioPureRandom.isChecked = true
+            RandomizationMode.PRIORITIZE_MODERN -> binding.radioPrioritizeModern.isChecked = true
+            RandomizationMode.CUSTOM -> binding.radioCustomWeights.isChecked = true
+        }
+        workingWeights = GamePreferences.decadeWeights(context)
+        renderDecadeWeightControls()
+        updateRandomizationVisibility()
+        updateHistoryStatus()
+
+        val raw = binding.editCustomList.text.toString()
+        if (raw.isNotBlank()) updateValidation(raw)
     }
 
     private fun setupListeners() {
-        // Radio group toggle
-        binding.radioGroupSource.setOnCheckedChangeListener { _, checkedId ->
-            val isCustom = checkedId == R.id.radioCustomList
-            binding.layoutCustomList.visibility = if (isCustom) View.VISIBLE else View.GONE
+        binding.radioGroupSource.setOnCheckedChangeListener { _, _ -> updateCustomListVisibility() }
+        binding.radioGroupGameMode.setOnCheckedChangeListener { _, _ -> Unit }
+        binding.radioGroupRandomization.setOnCheckedChangeListener { _, checkedId ->
+            if (checkedId == R.id.radioPureRandom) {
+                workingWeights = GamePreferences.defaultWeights(RandomizationMode.PURE_RANDOM)
+                updateDecadeWeightControls()
+            } else if (checkedId == R.id.radioPrioritizeModern) {
+                workingWeights = GamePreferences.defaultWeights(RandomizationMode.PRIORITIZE_MODERN)
+                updateDecadeWeightControls()
+            }
+            updateRandomizationVisibility()
         }
 
-        // Live validation as user types
         binding.editCustomList.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                updateValidation(s?.toString() ?: "")
-            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) = updateValidation(s?.toString().orEmpty())
         })
 
-        // Save button
+        binding.buttonClearHistory.setOnClickListener { confirmClearHistory() }
         binding.buttonSave.setOnClickListener { saveSettings() }
-
-        // Cancel button
         binding.buttonCancel.setOnClickListener { goBack() }
     }
 
     private fun updateCustomListVisibility() {
-        val isCustom = binding.radioCustomList.isChecked
-        binding.layoutCustomList.visibility = if (isCustom) View.VISIBLE else View.GONE
+        binding.layoutCustomList.visibility = if (binding.radioCustomList.isChecked) View.VISIBLE else View.GONE
+    }
+
+    private fun updateRandomizationVisibility() {
+        binding.layoutDecadeWeights.visibility = if (binding.radioCustomWeights.isChecked) View.VISIBLE else View.GONE
     }
 
     private fun updateValidation(raw: String) {
@@ -107,10 +125,67 @@ class SettingsFragment : Fragment() {
         binding.textValidationResult.visibility = View.VISIBLE
     }
 
+    private fun renderDecadeWeightControls() {
+        val container = binding.layoutDecadeWeights
+        container.removeAllViews()
+        weightLabels.clear()
+        weightSliders.clear()
+        for (decade in GamePreferences.decadeStarts()) {
+            val row = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                minimumHeight = 48.dp
+            }
+            val decadeLabel = TextView(requireContext()).apply {
+                layoutParams = LinearLayout.LayoutParams(72.dp, LinearLayout.LayoutParams.WRAP_CONTENT)
+                setTextColor(requireContext().getColor(R.color.body_text))
+                text = getString(R.string.settings_decade_label, decade)
+            }
+            val slider = SeekBar(requireContext()).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                max = 100
+                progress = workingWeights[decade] ?: 0
+                contentDescription = getString(R.string.settings_decade_label, decade)
+            }
+            val valueLabel = TextView(requireContext()).apply {
+                layoutParams = LinearLayout.LayoutParams(52.dp, LinearLayout.LayoutParams.WRAP_CONTENT)
+                gravity = android.view.Gravity.END
+                setTextColor(requireContext().getColor(R.color.amber_accent))
+            }
+            slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                    if (!fromUser || updatingWeightControls) return
+                    workingWeights = GamePreferences.redistributeWeights(workingWeights, decade, progress)
+                    binding.radioCustomWeights.isChecked = true
+                    updateDecadeWeightControls()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+            })
+            row.addView(decadeLabel)
+            row.addView(slider)
+            row.addView(valueLabel)
+            container.addView(row)
+            weightLabels[decade] = valueLabel
+            weightSliders[decade] = slider
+        }
+        updateDecadeWeightControls()
+    }
+
+    private fun updateDecadeWeightControls() {
+        if (!isAdded) return
+        updatingWeightControls = true
+        GamePreferences.decadeStarts().forEach { decade ->
+            val value = workingWeights[decade] ?: 0
+            weightSliders[decade]?.progress = value
+            weightLabels[decade]?.text = getString(R.string.settings_percent, value)
+        }
+        updatingWeightControls = false
+    }
+
     private fun saveSettings() {
         val context = requireContext()
         val useCustom = binding.radioCustomList.isChecked
-
         if (useCustom) {
             val raw = binding.editCustomList.text.toString().trim()
             if (raw.isBlank()) {
@@ -122,25 +197,62 @@ class SettingsFragment : Fragment() {
                 Toast.makeText(context, R.string.settings_error_no_ids, Toast.LENGTH_SHORT).show()
                 return
             }
-            // Save custom list
             VideoProvider.setCustomListRaw(context, raw)
             VideoProvider.setSource(context, VideoProvider.Source.CUSTOM)
             VideoProvider.loadFromCustomText(raw)
-
-            Toast.makeText(context,
-                getString(R.string.settings_saved_custom, ids.size), Toast.LENGTH_SHORT).show()
         } else {
-            // Use default list
             VideoProvider.setSource(context, VideoProvider.Source.DEFAULT)
             VideoProvider.loadFromAssets(context)
-
-            Toast.makeText(context, R.string.settings_saved_default, Toast.LENGTH_SHORT).show()
         }
 
+        val gameMode = if (binding.radioArcade.isChecked) GameMode.ARCADE else GameMode.CLASSIC
+        GamePreferences.setGameMode(context, gameMode)
+
+        val randomization = when {
+            binding.radioPureRandom.isChecked -> RandomizationMode.PURE_RANDOM
+            binding.radioCustomWeights.isChecked -> RandomizationMode.CUSTOM
+            else -> RandomizationMode.PRIORITIZE_MODERN
+        }
+        if (randomization == RandomizationMode.CUSTOM && workingWeights.values.sum() <= 0) {
+            Toast.makeText(context, R.string.settings_error_no_decades, Toast.LENGTH_SHORT).show()
+            return
+        }
+        GamePreferences.setRandomizationMode(context, randomization)
+        GamePreferences.saveDecadeWeights(context, workingWeights)
+
+        val message = if (useCustom) {
+            getString(R.string.settings_saved_custom, VideoProvider.parseVideoIds(binding.editCustomList.text.toString()).size)
+        } else {
+            getString(R.string.settings_saved_default)
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         goBack()
+    }
+
+    private fun confirmClearHistory() {
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_clear_history)
+            .setMessage(R.string.settings_clear_history_message)
+            .setPositiveButton(R.string.reset) { _, _ ->
+                PlayHistory.clear(requireContext())
+                updateHistoryStatus()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun updateHistoryStatus() {
+        binding.textHistoryStatus.text = getString(
+            R.string.settings_history_status,
+            PlayHistory.historyCount(requireContext()),
+            PlayHistory.duplicateCount(requireContext()),
+        )
     }
 
     private fun goBack() {
         parentFragmentManager.popBackStack()
     }
+
+    private val Int.dp: Int
+        get() = (this * resources.displayMetrics.density).toInt()
 }
