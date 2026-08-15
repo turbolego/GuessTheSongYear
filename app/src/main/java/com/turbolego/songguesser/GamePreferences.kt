@@ -1,6 +1,7 @@
 package com.turbolego.songguesser
 
 import android.content.Context
+import java.security.MessageDigest
 import java.util.Locale
 import kotlin.math.max
 
@@ -80,16 +81,30 @@ object GamePreferences {
 
     fun defaultWeights(mode: RandomizationMode): Map<Int, Int> {
         val decades = decadeStarts()
-        return when (mode) {
-            RandomizationMode.PRIORITIZE_MODERN -> {
-                val total = decades.indices.sumOf { it + 1 }
-                decades.mapIndexed { index, decade -> decade to ((index + 1) * 100 / total) }.toMap()
-            }
-            else -> {
-                val base = 100 / decades.size
-                decades.associateWith { base }
-            }
+        val rawWeights = when (mode) {
+            RandomizationMode.PRIORITIZE_MODERN -> decades.mapIndexed { index, decade ->
+                decade to (index + 1)
+            }.toMap()
+            else -> decades.associateWith { 1 }
         }
+        return normalizeWeights(rawWeights)
+    }
+
+    private fun normalizeWeights(weights: Map<Int, Int>): Map<Int, Int> {
+        val decades = decadeStarts()
+        val total = decades.sumOf { max(0, weights[it] ?: 0) }
+        if (total == 0) return decades.associateWith { 0 }
+
+        val normalized = decades.associateWith { decade ->
+            ((max(0, weights[decade] ?: 0).toDouble() / total) * 100).toInt()
+        }.toMutableMap()
+        var remainder = 100 - normalized.values.sum()
+        for (decade in decades.reversed()) {
+            if (remainder == 0) break
+            normalized[decade] = max(0, (normalized[decade] ?: 0) + if (remainder > 0) 1 else -1)
+            remainder += if (remainder > 0) -1 else 1
+        }
+        return decades.associateWith { normalized[it] ?: 0 }
     }
 
     fun decadeWeights(context: Context): Map<Int, Int> {
@@ -157,8 +172,9 @@ object GamePreferences {
 object PlayHistory {
     private const val PREFS = "play_history"
     private const val KEY_IDS = "played_video_ids"
+    private const val KEY_ORDER = "played_video_ids_order"
     private const val KEY_DUPLICATES = "duplicate_candidates"
-    private const val MAX_ENTRIES = 1_000
+    internal const val MAX_ENTRIES = 1_000
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -167,12 +183,30 @@ object PlayHistory {
         prefs(context).getStringSet(KEY_IDS, emptySet()).orEmpty().contains(videoId)
 
     fun record(context: Context, videoId: String) {
-        val updated = prefs(context).getStringSet(KEY_IDS, emptySet()).orEmpty().toMutableSet()
-        updated.add(videoId)
-        if (updated.size > MAX_ENTRIES) {
-            updated.take(updated.size - MAX_ENTRIES).forEach(updated::remove)
-        }
-        prefs(context).edit().putStringSet(KEY_IDS, updated).apply()
+        val pref = prefs(context)
+        val ordered = appendToHistory(readOrderedIds(pref), videoId)
+        pref.edit()
+            .putStringSet(KEY_IDS, ordered.toSet())
+            .putString(KEY_ORDER, ordered.joinToString("\n"))
+            .apply()
+    }
+
+    /**
+     * Keeps the newest occurrence of an ID and trims the oldest IDs first. The
+     * operation is pure so history rollover can be verified without Android I/O.
+     */
+    internal fun appendToHistory(current: List<String>, videoId: String): List<String> =
+        (current.filter { it != videoId } + videoId).takeLast(MAX_ENTRIES)
+
+    private fun readOrderedIds(pref: android.content.SharedPreferences): List<String> {
+        val savedOrder = pref.getString(KEY_ORDER, "").orEmpty()
+            .lineSequence()
+            .filter(String::isNotBlank)
+            .toList()
+        if (savedOrder.isNotEmpty()) return savedOrder
+        // Migrate legacy unordered entries without dropping an ID; chronological
+        // order only becomes available after the next recorded round.
+        return pref.getStringSet(KEY_IDS, emptySet()).orEmpty().toList()
     }
 
     fun recordDuplicateCandidate(context: Context) {
@@ -184,7 +218,7 @@ object PlayHistory {
     fun historyCount(context: Context): Int = prefs(context).getStringSet(KEY_IDS, emptySet()).orEmpty().size
 
     fun clear(context: Context) {
-        prefs(context).edit().remove(KEY_IDS).remove(KEY_DUPLICATES).apply()
+        prefs(context).edit().remove(KEY_IDS).remove(KEY_ORDER).remove(KEY_DUPLICATES).apply()
     }
 }
 
@@ -203,13 +237,22 @@ object PlayerStatistics {
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private fun key(name: String): String = name.trim().lowercase(Locale.ROOT)
-        .replace(Regex("[^a-z0-9]+"), "_")
-        .trim('_')
-        .ifBlank { "player" }
+    /**
+     * Combines a legible SharedPreferences-safe slug with a hash of the original
+     * normalized name so punctuation variants cannot merge player statistics.
+     */
+    internal fun storageKeyFor(name: String): String {
+        val normalized = name.trim().lowercase(Locale.ROOT)
+        val slug = normalized.replace(Regex("[^a-z0-9]+"), "_").trim('_').ifBlank { "player" }
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(normalized.toByteArray(Charsets.UTF_8))
+            .joinToString("") { byte -> "%02x".format(byte) }
+            .take(12)
+        return "${slug}_$digest"
+    }
 
     fun recordGuess(context: Context, playerName: String, guess: Int, answer: Int, points: Int) {
-        val playerKey = key(playerName)
+        val playerKey = storageKeyFor(playerName)
         val pref = prefs(context)
         val knownPlayers = pref.getStringSet(KEY_PLAYERS, emptySet()).orEmpty().toMutableSet()
         knownPlayers.add(playerName)
@@ -224,7 +267,7 @@ object PlayerStatistics {
     fun summaries(context: Context): List<Summary> {
         val pref = prefs(context)
         return pref.getStringSet(KEY_PLAYERS, emptySet()).orEmpty().map { name ->
-            val playerKey = key(name)
+            val playerKey = storageKeyFor(name)
             Summary(
                 playerName = name,
                 guesses = pref.getInt("${playerKey}_guesses", 0),

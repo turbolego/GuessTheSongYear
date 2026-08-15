@@ -80,7 +80,6 @@ class SettingsFragment : Fragment() {
 
     private fun setupListeners() {
         binding.radioGroupSource.setOnCheckedChangeListener { _, _ -> updateCustomListVisibility() }
-        binding.radioGroupGameMode.setOnCheckedChangeListener { _, _ -> Unit }
         binding.radioGroupRandomization.setOnCheckedChangeListener { _, checkedId ->
             if (checkedId == R.id.radioPureRandom) {
                 workingWeights = GamePreferences.defaultWeights(RandomizationMode.PURE_RANDOM)
