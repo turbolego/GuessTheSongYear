@@ -189,4 +189,28 @@
     <string name="settings_saved_default">✅ Using default list</string>
     <string name="settings_error_empty_list">Please paste video URLs or IDs</string>
     <string name="settings_error_no_ids">No valid YouTube videos found in the text</string>
+
+    <!-- Web-game parity: gameplay configuration and statistics -->
+    <string name="menu_player_stats">Player statistics</string>
+    <string name="select_year">Select year</string>
+    <string name="arcade_score_summary">%1$s: %2$d points</string>
+    <string name="settings_game_mode">Game mode</string>
+    <string name="settings_game_mode_classic">Classic — everyone guesses the same song</string>
+    <string name="settings_game_mode_arcade">Arcade — players take turns guessing</string>
+    <string name="settings_game_mode_help">Arcade mode advances to the next player after every revealed answer.</string>
+    <string name="settings_randomization">Song distribution</string>
+    <string name="settings_randomization_pure">Pure random</string>
+    <string name="settings_randomization_modern">Prioritize modern decades</string>
+    <string name="settings_randomization_custom">Custom decade weights</string>
+    <string name="settings_decade_label">%ds</string>
+    <string name="settings_percent">%d%%</string>
+    <string name="settings_error_no_decades">Choose at least one decade with a weight above 0%%.</string>
+    <string name="settings_history">Song history</string>
+    <string name="settings_history_status">%1$d remembered videos · %2$d duplicate candidates skipped</string>
+    <string name="settings_clear_history">Clear song history</string>
+    <string name="settings_clear_history_message">This forgets played videos and resets the duplicate counter.</string>
+    <string name="player_stats_title">Player statistics</string>
+    <string name="player_stats_empty">No guesses have been recorded yet.</string>
+    <string name="player_stats_item">%1$s\n%2$d guesses · %3$d exact · %4$d points</string>
+    <string name="player_stats_clear">Reset statistics</string>
 </resources>

@@ -189,4 +189,28 @@
     <string name="settings_saved_default">✅ Bruker standard liste</string>
     <string name="settings_error_empty_list">Vennligst lim inn video-URLer eller IDer</string>
     <string name="settings_error_no_ids">Ingen gyldige YouTube-videoer funnet i teksten</string>
+
+    <!-- Web-game parity: gameplay configuration and statistics -->
+    <string name="menu_player_stats">Spillerstatistikk</string>
+    <string name="select_year">Velg år</string>
+    <string name="arcade_score_summary">%1$s: %2$d poeng</string>
+    <string name="settings_game_mode">Spillmodus</string>
+    <string name="settings_game_mode_classic">Klassisk — alle gjetter samme sang</string>
+    <string name="settings_game_mode_arcade">Arkade — spillerne gjetter etter tur</string>
+    <string name="settings_game_mode_help">Arkademodus roterer til neste spiller etter hvert avslørte svar.</string>
+    <string name="settings_randomization">Sangfordeling</string>
+    <string name="settings_randomization_pure">Helt tilfeldig</string>
+    <string name="settings_randomization_modern">Prioriter nyere tiår</string>
+    <string name="settings_randomization_custom">Egendefinerte tiårsvekter</string>
+    <string name="settings_decade_label">%d-tallet</string>
+    <string name="settings_percent">%d%%</string>
+    <string name="settings_error_no_decades">Velg minst ett tiår med en vekt over 0%%.</string>
+    <string name="settings_history">Sanghistorikk</string>
+    <string name="settings_history_status">%1$d huskede videoer · %2$d duplikatkandidater hoppet over</string>
+    <string name="settings_clear_history">Tøm sanghistorikk</string>
+    <string name="settings_clear_history_message">Dette glemmer avspilte videoer og nullstiller duplikattelleren.</string>
+    <string name="player_stats_title">Spillerstatistikk</string>
+    <string name="player_stats_empty">Ingen gjetninger er registrert ennå.</string>
+    <string name="player_stats_item">%1$s\n%2$d gjetninger · %3$d perfekte · %4$d poeng</string>
+    <string name="player_stats_clear">Nullstill statistikk</string>
 </resources>

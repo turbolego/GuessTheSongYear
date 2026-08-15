@@ -68,6 +68,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_player_stats"
+        android:title="@string/menu_player_stats"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_debug_youtube"
         android:title="Debug: YouTube"
         app:showAsAction="never" />

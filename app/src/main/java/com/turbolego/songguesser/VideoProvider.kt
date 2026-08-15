@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.regex.Pattern
+import kotlin.random.Random
 
 /**
  * Provides random YouTube video IDs from either the default asset file
@@ -153,6 +154,60 @@ object VideoProvider {
         }
         val pool = if (year != null) yearIndex[year] else cachedVideos
         return pool?.randomOrNull()
+    }
+
+    /**
+     * Game-aware entry selection. Custom URL lists have no reliable release-year
+     * metadata, so they remain uniformly randomized regardless of the selected
+     * probability mode.
+     */
+    fun getRandomVideoEntry(context: Context): VideoEntry? {
+        if (cachedVideos.isEmpty()) return null
+        if (loadedFromCustom) return cachedVideos.randomOrNull()
+
+        val year = when (GamePreferences.randomizationMode(context)) {
+            RandomizationMode.PURE_RANDOM -> allYears.randomOrNull()
+            RandomizationMode.PRIORITIZE_MODERN ->
+                YearRandomizer.prioritizeModernYears(availableYears = allYears)
+            RandomizationMode.CUSTOM -> pickCustomWeightedYear(GamePreferences.decadeWeights(context))
+        }
+        return yearIndex[year]?.randomOrNull() ?: cachedVideos.randomOrNull()
+    }
+
+    private fun pickCustomWeightedYear(weights: Map<Int, Int>): Int? {
+        val yearsByDecade = allYears.groupBy { year -> (year / 10) * 10 }
+        val availableDecades = yearsByDecade.keys.sorted().filter { decade -> (weights[decade] ?: 0) > 0 }
+        val totalWeight = availableDecades.sumOf { decade -> weights[decade] ?: 0 }
+        if (totalWeight == 0) return allYears.randomOrNull()
+
+        val selectedDecade = selectCustomWeightedDecade(
+            weights = weights,
+            availableDecades = availableDecades,
+            randomRoll = Random.nextInt(totalWeight),
+        ) ?: return allYears.randomOrNull()
+        return yearsByDecade[selectedDecade]?.randomOrNull()
+    }
+
+    /**
+     * Selects a decade from its configured share before choosing one of its
+     * available years. This prevents decades with more catalogued years from
+     * receiving more probability than their slider weight specifies.
+     */
+    internal fun selectCustomWeightedDecade(
+        weights: Map<Int, Int>,
+        availableDecades: List<Int>,
+        randomRoll: Int,
+    ): Int? {
+        val activeDecades = availableDecades.sorted().filter { decade -> (weights[decade] ?: 0) > 0 }
+        val totalWeight = activeDecades.sumOf { decade -> weights[decade] ?: 0 }
+        if (totalWeight == 0 || randomRoll !in 0 until totalWeight) return null
+
+        var remaining = randomRoll
+        for (decade in activeDecades) {
+            remaining -= weights[decade] ?: 0
+            if (remaining < 0) return decade
+        }
+        return activeDecades.lastOrNull()
     }
 
     fun getAvailableYears(): List<Int> = allYears

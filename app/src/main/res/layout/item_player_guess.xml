@@ -5,7 +5,9 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:paddingVertical="6dp"
-    android:paddingHorizontal="12dp"
+            android:paddingStart="@dimen/content_horizontal_padding"
+        android:paddingEnd="@dimen/content_horizontal_padding"
+
     android:background="?android:attr/selectableItemBackground">
 
     <TextView
@@ -22,12 +24,12 @@
 
     <EditText
         android:id="@+id/editTextYear"
-        android:layout_width="120dp"
+        android:layout_width="@dimen/year_input_width"
         android:layout_height="48dp"
         android:layout_marginTop="4dp"
         android:background="@drawable/input_background"
         android:gravity="center"
-        android:hint="År"
+        android:hint="@string/year_hint"
         android:imeOptions="actionDone"
         android:importantForAutofill="no"
         android:inputType="number"
