@@ -26,6 +26,45 @@
                 style="@style/BodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:text="@string/settings_language"
+                android:textColor="@color/amber_accent"
+                android:textStyle="bold" />
+
+            <RadioGroup
+                android:id="@+id/radioGroupLanguage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <RadioButton
+                    android:id="@+id/radioLanguageNorwegian"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:paddingVertical="8dp"
+                    android:text="@string/lang_norwegian"
+                    android:textColor="@color/body_text" />
+
+                <RadioButton
+                    android:id="@+id/radioLanguageEnglish"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:paddingVertical="8dp"
+                    android:text="@string/lang_english"
+                    android:textColor="@color/body_text" />
+            </RadioGroup>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="16dp"
+                android:background="@color/muted_text" />
+
+            <TextView
+                style="@style/BodyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:text="@string/settings_video_source"
                 android:textColor="@color/amber_accent"
                 android:textStyle="bold" />
