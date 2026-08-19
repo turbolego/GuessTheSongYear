@@ -222,7 +222,7 @@ dependencies {
         implementation("org.jdom:jdom2:2.0.6.1") {
             because("CVE-2021-33813")
         }
-        implementation("com.google.android.gms:play-services-basement:18.10.0") {
+        implementation("com.google.android.gms:play-services-basement:18.11.0") {
             because("CVE-2022-2390")
         }
         implementation("com.google.android.gms:play-services-tasks:18.4.1") {
