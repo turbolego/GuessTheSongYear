@@ -55,7 +55,7 @@ class SettingsFragment : Fragment() {
     private fun loadCurrentSettings() {
         val context = requireContext()
         when (LocaleHelper.getLanguage(context)) {
-            "en" -> binding.radioLanguageEnglish.isChecked = true
+            LocaleHelper.LANGUAGE_EN -> binding.radioLanguageEnglish.isChecked = true
             else -> binding.radioLanguageNorwegian.isChecked = true
         }
 
@@ -225,7 +225,11 @@ class SettingsFragment : Fragment() {
         GamePreferences.setRandomizationMode(context, randomization)
         GamePreferences.saveDecadeWeights(context, workingWeights)
 
-        val selectedLanguage = if (binding.radioLanguageEnglish.isChecked) "en" else "nb"
+        val selectedLanguage = if (binding.radioLanguageEnglish.isChecked) {
+            LocaleHelper.LANGUAGE_EN
+        } else {
+            LocaleHelper.LANGUAGE_NB
+        }
         if (LocaleHelper.getLanguage(context) != selectedLanguage) {
             LocaleHelper.setLanguage(requireActivity() as AppCompatActivity, selectedLanguage)
             return
