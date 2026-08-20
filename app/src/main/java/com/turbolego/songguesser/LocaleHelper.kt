@@ -18,8 +18,11 @@ object LocaleHelper {
     private const val PREFS_NAME = "locale_prefs"
     private const val KEY_LANG = "app_language"
 
+    const val LANGUAGE_EN = "en"
+    const val LANGUAGE_NB = "nb"
+
     /** Default language is Norwegian Bokmål. */
-    private const val DEFAULT_LANG = "nb"
+    private const val DEFAULT_LANG = LANGUAGE_NB
 
     // ── Read / Write preference ─────────────────────────────────────────────
 

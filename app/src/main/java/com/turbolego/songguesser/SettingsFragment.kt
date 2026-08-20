@@ -11,6 +11,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.turbolego.songguesser.databinding.FragmentSettingsBinding
 
@@ -53,6 +54,11 @@ class SettingsFragment : Fragment() {
 
     private fun loadCurrentSettings() {
         val context = requireContext()
+        when (LocaleHelper.getLanguage(context)) {
+            LocaleHelper.LANGUAGE_EN -> binding.radioLanguageEnglish.isChecked = true
+            else -> binding.radioLanguageNorwegian.isChecked = true
+        }
+
         val source = VideoProvider.getSource(context)
         binding.radioDefaultList.isChecked = source == VideoProvider.Source.DEFAULT
         binding.radioCustomList.isChecked = source == VideoProvider.Source.CUSTOM
@@ -218,6 +224,16 @@ class SettingsFragment : Fragment() {
         }
         GamePreferences.setRandomizationMode(context, randomization)
         GamePreferences.saveDecadeWeights(context, workingWeights)
+
+        val selectedLanguage = if (binding.radioLanguageEnglish.isChecked) {
+            LocaleHelper.LANGUAGE_EN
+        } else {
+            LocaleHelper.LANGUAGE_NB
+        }
+        if (LocaleHelper.getLanguage(context) != selectedLanguage) {
+            LocaleHelper.setLanguage(requireActivity() as AppCompatActivity, selectedLanguage)
+            return
+        }
 
         val message = if (useCustom) {
             getString(R.string.settings_saved_custom, VideoProvider.parseVideoIds(binding.editCustomList.text.toString()).size)

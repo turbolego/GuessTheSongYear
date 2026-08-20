@@ -177,6 +177,7 @@
 
     <!-- Settings -->
     <string name="menu_settings">Innstillinger</string>
+    <string name="settings_language">Språk</string>
     <string name="settings_video_source">Videokilde</string>
     <string name="settings_use_default_list">Bruk standard liste</string>
     <string name="settings_use_custom_list">Bruk din egen liste</string>

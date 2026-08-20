@@ -71,8 +71,8 @@ class MainActivity : AppCompatActivity() {
 
         // Check active language
         val currentLang = LocaleHelper.getLanguage(this)
-        menu.findItem(R.id.action_language_nb)?.isChecked = currentLang == "nb"
-        menu.findItem(R.id.action_language_en)?.isChecked = currentLang == "en"
+        menu.findItem(R.id.action_language_nb)?.isChecked = currentLang == LocaleHelper.LANGUAGE_NB
+        menu.findItem(R.id.action_language_en)?.isChecked = currentLang == LocaleHelper.LANGUAGE_EN
 
         return true
     }
@@ -92,11 +92,11 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_language_nb -> {
-                LocaleHelper.setLanguage(this, "nb")
+                LocaleHelper.setLanguage(this, LocaleHelper.LANGUAGE_NB)
                 true
             }
             R.id.action_language_en -> {
-                LocaleHelper.setLanguage(this, "en")
+                LocaleHelper.setLanguage(this, LocaleHelper.LANGUAGE_EN)
                 true
             }
             R.id.action_local_multiplayer -> {

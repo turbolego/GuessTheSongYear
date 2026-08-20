@@ -177,6 +177,7 @@
 
     <!-- Settings -->
     <string name="menu_settings">Settings</string>
+    <string name="settings_language">Language</string>
     <string name="settings_video_source">Video Source</string>
     <string name="settings_use_default_list">Use default list</string>
     <string name="settings_use_custom_list">Use your own list</string>
