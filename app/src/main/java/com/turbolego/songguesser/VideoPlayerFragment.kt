@@ -1,7 +1,5 @@
 package com.turbolego.songguesser
 
-import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -50,8 +48,26 @@ class VideoPlayerFragment : Fragment() {
     private var duplicateSkipCount = 0
     private var currentVideoId: String? = null
 
-    // Permanently blocked videos (embed-disabled / error 150/152)
+    // Permanently blocked videos (embed-disabled / deleted / unavailable)
     private var blockedVideoIds = mutableSetOf<String>()
+    private val upcomingSongs = SongQueue<VideoProvider.VideoEntry> { it.id }
+
+    companion object {
+        private const val TAG = "VideoPlayer"
+        private const val UPCOMING_SONG_TARGET = 5
+        const val YEAR_MIN = 1960
+        const val YEAR_MAX = 2025
+
+        @Volatile var activeFragment: VideoPlayerFragment? = null
+
+        fun newInstance(playerNames: List<String>): VideoPlayerFragment {
+            val frag = VideoPlayerFragment()
+            frag.arguments = Bundle().apply {
+                putStringArrayList("playerNames", ArrayList(playerNames))
+            }
+            return frag
+        }
+    }
 
     // Countdown / timer
     private var countdownJob: Job? = null
@@ -69,22 +85,6 @@ class VideoPlayerFragment : Fragment() {
     private var isNetworkClient = false
 
     // ── Factory ────────────────────────────────────────────────────────────
-
-    companion object {
-        private const val TAG = "VideoPlayer"
-        const val YEAR_MIN = 1960
-        const val YEAR_MAX = 2025
-
-        @Volatile var activeFragment: VideoPlayerFragment? = null
-
-        fun newInstance(playerNames: List<String>): VideoPlayerFragment {
-            val frag = VideoPlayerFragment()
-            frag.arguments = Bundle().apply {
-                putStringArrayList("playerNames", ArrayList(playerNames))
-            }
-            return frag
-        }
-    }
 
     // ── Lifecycle ──────────────────────────────────────────────────────────
 
@@ -132,29 +132,10 @@ class VideoPlayerFragment : Fragment() {
 
                 override fun onError(ytPlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
                     val videoId = currentVideoId
-
-                    when (error) {
-                        // Embed-disabled: silently skip to next video — don't bother the user
-                        PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER -> {
-                            if (videoId != null) blockedVideoIds.add(videoId)
-                            loadNextVideo()
-                        }
-
-                        // Video deleted/privated: skip silently
-                        PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> {
-                            if (videoId != null) blockedVideoIds.add(videoId)
-                            loadNextVideo()
-                        }
-
-                        // REQUEST_MISSING_HTTP_REFERER, UNKNOWN, HTML5_PLAYER — may be transient,
-                        // offer YouTube fallback so the user can watch externally
-                        else -> {
-                            if (videoId != null && videoId !in blockedVideoIds) {
-                                blockedVideoIds.add(videoId)
-                                showYouTubeFallback(videoId)
-                            }
-                        }
-                    }
+                    // Treat every player error as a failed candidate. This includes
+                    // embed restrictions and transient-looking errors: retrying the
+                    // same ID is what exposed the in-app YouTube error to players.
+                    if (videoId != null) discardAndReplace(videoId)
                 }
             },
             true,
@@ -210,11 +191,13 @@ class VideoPlayerFragment : Fragment() {
         countdownJob?.cancel()
         guessJob?.cancel()
 
-        // Pick the next video (avoiding duplicates in this session)
-        val entry = pickNextEntry() ?: run {
+        refillUpcomingSongs()
+        val entry = upcomingSongs.poll() ?: run {
             // All videos played — reset the pool
             playedVideoIds.clear()
-            val retry = pickNextEntry()
+            upcomingSongs.clear()
+            refillUpcomingSongs()
+            val retry = upcomingSongs.poll()
             if (retry == null) {
                 Toast.makeText(requireContext(), R.string.error_no_videos_left, Toast.LENGTH_SHORT).show()
                 return
@@ -224,41 +207,35 @@ class VideoPlayerFragment : Fragment() {
         }
 
         playVideo(entry.id, entry.year, entry.title)
+        // Keep the replacement ready before the current round can finish.
+        refillUpcomingSongs()
     }
 
-    private fun pickNextEntry(): VideoProvider.VideoEntry? {
-        // Try to get a weighted random entry, skipping blocked (embed-disabled) and played IDs
-        val entry = VideoProvider.getRandomVideoEntry(requireContext())
-        if (entry != null && entry.id !in playedVideoIds && entry.id !in blockedVideoIds &&
-            !PlayHistory.contains(requireContext(), entry.id)
-        ) {
-            return entry
-        }
-        if (entry != null && (entry.id in playedVideoIds || PlayHistory.contains(requireContext(), entry.id))) {
-            duplicateSkipCount++
-            PlayHistory.recordDuplicateCandidate(requireContext())
-        }
-
-        // If the first pick was unavailable, try more picks before reusing history.
-        repeat(50) {
-            val alt = VideoProvider.getRandomVideoEntry(requireContext())
-            if (alt != null && alt.id !in playedVideoIds && alt.id !in blockedVideoIds &&
-                !PlayHistory.contains(requireContext(), alt.id)
-            ) {
-                return alt
-            }
-            if (alt != null && (alt.id in playedVideoIds || PlayHistory.contains(requireContext(), alt.id))) {
+    private fun refillUpcomingSongs() {
+        var attempts = 0
+        while (upcomingSongs.size < UPCOMING_SONG_TARGET && attempts++ < 250) {
+            val entry = VideoProvider.getRandomVideoEntry(requireContext()) ?: break
+            val unavailable = entry.id in playedVideoIds ||
+                entry.id in blockedVideoIds ||
+                entry.id == currentVideoId ||
+                PlayHistory.contains(requireContext(), entry.id)
+            if (!unavailable && !upcomingSongs.containsId(entry.id)) {
+                upcomingSongs.add(entry)
+            } else if (entry.id in playedVideoIds || PlayHistory.contains(requireContext(), entry.id)) {
                 duplicateSkipCount++
                 PlayHistory.recordDuplicateCandidate(requireContext())
             }
         }
+    }
 
-        // A small catalog may be exhausted. Prefer a playable entry over blocking the next round.
-        val any = VideoProvider.getRandomVideoEntry(requireContext())
-        if (any != null && any.id !in blockedVideoIds) return any
-
-        // All videos blocked — offer fallback
-        return null
+    private fun discardAndReplace(videoId: String) {
+        if (videoId != currentVideoId || videoId in blockedVideoIds) return
+        blockedVideoIds.add(videoId)
+        upcomingSongs.removeById(videoId)
+        countdownJob?.cancel()
+        guessJob?.cancel()
+        // No error/fallback state is rendered. Advance immediately and refill.
+        loadNextVideo()
     }
 
     private fun playVideo(videoId: String, year: Int = 0, title: String = "") {
@@ -280,8 +257,6 @@ class VideoPlayerFragment : Fragment() {
         binding.textViewSongTitle.text = "???"
         binding.textViewArtist.text = "???"
         binding.textViewCountdown.visibility = View.GONE
-        binding.buttonYoutubeFallback.visibility = View.GONE
-        binding.textViewBlockedInfo.visibility = View.GONE
         binding.numberPickerYear.visibility = View.GONE
 
         // Reset multiplayer adapter for new round
@@ -340,11 +315,6 @@ class VideoPlayerFragment : Fragment() {
         // Reveal answers (multiplayer)
         binding.buttonRevealAnswers.setOnClickListener { revealMultiplayerAnswers() }
 
-        // YouTube fallback — open in YouTube app/browser when IFrame fails
-        binding.buttonYoutubeFallback.setOnClickListener {
-            val videoId = currentVideoId ?: return@setOnClickListener
-            openInYoutubeApp(videoId)
-        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -552,6 +522,7 @@ class VideoPlayerFragment : Fragment() {
         score = 0
         streak = 0
         playedVideoIds.clear()
+        upcomingSongs.clear()
         duplicateSkipCount = 0
         updateScoreDisplay()
     }
@@ -628,56 +599,6 @@ class VideoPlayerFragment : Fragment() {
         binding.textViewArtist.text = getString(R.string.year_unknown)
         binding.progressBar.visibility = View.GONE
         beginCountdown()
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // YOUTUBE FALLBACK — when IFrame API can't play a video (embed disabled)
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    fun showYouTubeFallback(videoId: String) {
-        // Cancel timers — the video failed to play
-        countdownJob?.cancel()
-        guessJob?.cancel()
-
-        requireActivity().runOnUiThread {
-            binding.editTextGuess.isEnabled = false
-            binding.buttonGuess.isEnabled = false
-            binding.textViewSongTitle.text = "???"
-            binding.textViewArtist.text = "⚠ " + getString(R.string.video_not_available)
-            binding.textViewCountdown.visibility = View.GONE
-            binding.progressBar.visibility = View.GONE
-            binding.textViewFeedback.text = getString(R.string.video_embed_blocked)
-            binding.textViewFeedback.visibility = View.VISIBLE
-            binding.buttonYoutubeFallback.visibility = View.VISIBLE
-            binding.textViewBlockedInfo.visibility = View.VISIBLE
-
-            // Keep the guess cycle working — user can watch on YouTube then guess
-            beginGuessTimer()
-        }
-    }
-
-    private fun openInYoutubeApp(videoId: String) {
-        try {
-            // Try official YouTube app first
-            val intent = Intent(Intent.ACTION_VIEW,
-                Uri.parse("https://www.youtube.com/watch?v=$videoId")).apply {
-                setPackage("com.google.android.youtube")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            startActivity(intent)
-        } catch (_: Exception) {
-            // YouTube app not installed — fall back to browser
-            try {
-                val intent = Intent(Intent.ACTION_VIEW,
-                    Uri.parse("https://www.youtube.com/watch?v=$videoId")).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                startActivity(intent)
-            } catch (e2: Exception) {
-                Toast.makeText(requireContext(),
-                    getString(R.string.error_open_youtube), Toast.LENGTH_SHORT).show()
-            }
-        }
     }
 
     /**

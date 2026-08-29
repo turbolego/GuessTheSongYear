@@ -215,28 +215,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/reveal_answers"
                     android:visibility="gone" />
-
-                <Button
-                    android:id="@+id/buttonYoutubeFallback"
-                    style="@style/SecondaryButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:backgroundTint="@color/amber_accent"
-                    android:text="@string/watch_on_youtube"
-                    android:textColor="@color/ink"
-                    android:visibility="gone" />
             </LinearLayout>
-
-            <TextView
-                android:id="@+id/textViewBlockedInfo"
-                style="@style/MutedText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:maxWidth="@dimen/game_content_max_width"
-                android:paddingTop="4dp"
-                android:visibility="gone"
-                tools:text="Videoen kan ikke spilles av i appen. Trykk Åpne i YouTube." />
 
             <TextView
                 android:id="@+id/textViewClientLabel"

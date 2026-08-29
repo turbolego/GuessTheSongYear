@@ -103,9 +103,6 @@
     <string name="error_invalid_year">Please enter a valid year (1960–2025).</string>
     <string name="error_generic">Something went wrong. Try again.</string>
     <string name="error_no_videos_left">No more videos available. Try refreshing.</string>
-    <string name="video_not_available">Video is not available</string>
-    <string name="video_embed_blocked">⚠ This video can\'t play in the app. Tap \"Open in YouTube\" to watch it, or skip to the next.</string>
-    <string name="error_open_youtube">Could not open YouTube</string>
     <string name="error_no_youtube">YouTube app is not installed.</string>
 
     <!-- Dialog buttons -->
@@ -113,10 +110,6 @@
     <string name="reset">Reset</string>
     <string name="ok">OK</string>
     <string name="close">Close</string>
-
-    <!-- Watch on YouTube -->
-    <string name="watch_on_youtube">Open in YouTube</string>
-    <string name="video_visited">You watched the video on YouTube</string>
 
     <!-- NewPipe + ExoPlayer -->
     <string name="loading_video">Loading video…</string>
