@@ -229,8 +229,14 @@ object SecureChannelManager {
     // Internal helpers
     // ─────────────────────────────────────────────────────────────────────────────
 
-    /** Builds a trust-all SSLContext (for relaxed client). */
+    /** Builds a trust-all SSLContext (for relaxed client bridge phase only). */
+    @Suppress("WEAK_TRUST_MANAGER")
     private fun createTrustAllContext(): SSLContext {
+        // This trust-all manager is intentional for the LAN bridge phase.
+        // The host uses an ephemeral self-signed certificate (no CA).
+        // Once the SPKI hash is communicated via QR, createPinningContext()
+        // provides strong certificate pinning. See createRelaxedClientSSLSocket()
+        // docs for the security model.
         val trustAllManager = object : X509TrustManager {
             override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
             override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
