@@ -169,7 +169,7 @@ dependencies {
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.android)
     // Real org.json for JVM unit tests (Android mock throws on every method call)
-    testImplementation("org.json:json:20231013")
+    testImplementation("org.json:json:20260814")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
