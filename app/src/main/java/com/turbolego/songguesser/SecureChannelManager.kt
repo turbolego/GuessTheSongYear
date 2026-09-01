@@ -20,7 +20,6 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLServerSocket
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManager
-import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
 /**
@@ -230,12 +229,21 @@ object SecureChannelManager {
     // Internal helpers
     // ─────────────────────────────────────────────────────────────────────────────
 
-    /** Builds an SSLContext using platform default trusted CAs. */
+    /** Builds a trust-all SSLContext (for relaxed client bridge phase only). */
+    @Suppress("WEAK_TRUST_MANAGER")
     private fun createTrustAllContext(): SSLContext {
-        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-        tmf.init(null as java.security.KeyStore?)
+        // This trust-all manager is intentional for the LAN bridge phase.
+        // The host uses an ephemeral self-signed certificate (no CA).
+        // Once the SPKI hash is communicated via QR, createPinningContext()
+        // provides strong certificate pinning. See createRelaxedClientSSLSocket()
+        // docs for the security model.
+        val trustAllManager = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+        }
         val ctx = SSLContext.getInstance(TLS_PROTOCOL)
-        ctx.init(null, tmf.trustManagers, SecureRandom())
+        ctx.init(null, arrayOf<TrustManager>(trustAllManager), SecureRandom())
         return ctx
     }
 
