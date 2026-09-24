@@ -28,8 +28,8 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version = "5.5.0" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
 zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
 androidx-test-core = { group = "androidx.test", name = "core", version = "1.7.0" }
-mockito-core = { group = "org.mockito", name = "mockito-core", version = "5.23.0" }
-mockito-android = { group = "org.mockito", name = "mockito-android", version = "5.23.0" }
+mockito-core = { group = "org.mockito", name = "mockito-core", version = "5.24.0" }
+mockito-android = { group = "org.mockito", name = "mockito-android", version = "5.24.0" }
 android-youtube-player = { group = "com.pierfrancescosoffritti.androidyoutubeplayer", name = "core", version.ref = "androidYoutubePlayer" }
 
 [plugins]
