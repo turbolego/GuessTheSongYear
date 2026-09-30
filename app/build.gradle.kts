@@ -210,7 +210,7 @@ dependencies {
         implementation("org.apache.httpcomponents:httpclient:4.5.14") {
             because("CVE-2020-13956")
         }
-        implementation("org.apache.commons:commons-lang3:3.20.0") {
+        implementation("org.apache.commons:commons-lang3:3.21.0") {
             because("CVE-2025-48924")
         }
         implementation("org.apache.commons:commons-compress:1.28.0") {
