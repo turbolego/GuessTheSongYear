@@ -187,15 +187,15 @@ dependencies {
         implementation("io.netty:netty-codec:4.2.19.Final") {
             because("CVE-2026-59901, CVE-2026-42583, CVE-2025-58057")
         }
-        implementation("io.netty:netty-handler-proxy:4.2.18.Final") {
+        implementation("io.netty:netty-handler-proxy:4.2.19.Final") {
             because("CVE-2026-42578")
         }
-        implementation("io.netty:netty-common:4.2.18.Final") {
+        implementation("io.netty:netty-common:4.2.19.Final") {
             because("CVE-2025-25193, CVE-2024-47535")
         }
-        implementation("io.netty:netty-buffer:4.2.18.Final") { because("Netty bom alignment") }
-        implementation("io.netty:netty-transport:4.2.18.Final") { because("Netty bom alignment") }
-        implementation("io.netty:netty-resolver:4.2.18.Final") { because("Netty bom alignment") }
+        implementation("io.netty:netty-buffer:4.2.19.Final") { because("Netty bom alignment") }
+        implementation("io.netty:netty-transport:4.2.19.Final") { because("Netty bom alignment") }
+        implementation("io.netty:netty-resolver:4.2.19.Final") { because("Netty bom alignment") }
 
         implementation("org.bouncycastle:bcprov-jdk18on:1.86") {
             because("CVE-2025-14813 (CRITICAL), GHSA-c3fc-8qff-9hwx")
