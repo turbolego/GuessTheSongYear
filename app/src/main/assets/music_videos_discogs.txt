@@ -49,10 +49,10 @@ woUt7wPe8Ow,1990,Angelo Badalamenti - Music From Twin Peaks
 r2Z2cSYWvdE,1990,Master Ace* - Music Man
 3DkoXHaswPY,1990,Rebel MC - Rebel Music
 4VWgTCxJ3tQ,1989,S'Xpress* - Hey Music Lover
-GD19i9Yig5Y,1989,The Prince Of Dance Music; L.B. Bad - The True Story Of Hous
 R4fwcjMTaJ4,1989,Roxy Music - Viva! Roxy Music (The Live Roxy Music Album)
-6602872,1988,Bryan Ferry / Roxy Music - Bryan Ferry - The Ultimate Collec
-8471849,1988,Roxy Music - Roxy Music
+80335,1989,The Prince Of Dance Music; L.B. Bad - The True Story Of Hous
+hRzGzRqNj58,1988,Bryan Ferry / Roxy Music - Bryan Ferry - The Ultimate Collec
+GWNsZPXq7Sw,1988,Roxy Music - Roxy Music
 GWNsZPXq7Sw,1987,Roxy Music - Roxy Music
 G6vYP-sBmEs,1987,Picture Music - Picture Music
 GWNsZPXq7Sw,1987,Roxy Music - Roxy Music
@@ -67,8 +67,8 @@ qfOOn2EUsfs,1981,Colored Music - Colored Music
 ZqX3SO7ownY,1980,Various - 415 Music
 KlgJe37ms-U,1980,Waylon Jennings - Music Man
 GWNsZPXq7Sw,1978,Roxy Music - Roxy Music
-1oOmUi4HGt0,1978,Steve Reich - Music For 18 Musicians
 tLZtnadL1s0,1978,Brian Eno - Discreet Music
+1oOmUi4HGt0,1978,Steve Reich - Music For 18 Musicians
 GWNsZPXq7Sw,1977,Roxy Music - Roxy Music
 GWNsZPXq7Sw,1977,Roxy Music - Roxy Music
 R4fwcjMTaJ4,1976,Roxy Music - Viva! Roxy Music (The Live Roxy Music Album)
@@ -85,7 +85,7 @@ GWNsZPXq7Sw,1972,Roxy Music - Roxy Music
 GWNsZPXq7Sw,1972,Roxy Music - Roxy Music
 Oe_NUgVew3Q,1969,Music Emporium - Music Emporium
 Oe_NUgVew3Q,1969,Music Emporium - Music Emporium
-Dq7jhla2Y-I,1969,Various - Music Box
+Oe_NUgVew3Q,1969,Music Emporium - Music Emporium
 FjuNuAtQ6YY,1968,The Bonniwell Music Machine* - The Bonniwell Music Machine
 uQPqe8oKlvk,1968,Sly & The Family Stone - Dance To The Music
 wlzl1MqCWC0,1968,George Harrison - Wonderwall Music
@@ -99,14 +99,14 @@ YAaSIpb9HmA,1966,John Cage / Luciano Berio / Ilhan Mimaroglu - Electronic Mus
 j4oHYnQxyEw,1965,Rodgers And Hammerstein* - Julie Andrews; Christopher Plumme
 lR2JmxEZvho,1965,Living Strings - Music From "The Sound Of Music"
 489414,1964,New Music Ensemble - New Music Ensemble
-4059875,1964,Rita Van Hoof - Lady Music
 4MxlJUppVHQ,1964,Various - Columbia-Princeton Electronic Music Center
+4059875,1964,Rita Van Hoof - Lady Music
 5899562,1963,Original London Cast* - The Sound Of Music
-3989619,1963,Handel* –  Telemann Society* Conductor Richard Schulze - Wat
 oHcdE2Ppr3s,1963,The Sensations (2) - Let Me In / Music; Music; Music
+3989619,1963,Handel* –  Telemann Society* Conductor Richard Schulze - Wat
 Do6NwCdrwQw,1962,The Electrosoniks* - Electronic Music
-o9_dT8QLkoU,1962,Ray Charles - Modern Sounds In Country And Western Music
+1102923,1962,Ray Charles - Modern Sounds In Country And Western Music
 1834439,1962,Meredith Willson - The Music Man (Original Soundtrack)
-1714909,1961,Rita Ford's Music Boxes - A Music Box Christmas
-1411970,1961,Various - Music From Mathematics
-2219006,1961,The Sensations (2) Featuring Yvonne* - Music; Music; Music
+_DwI7wOcUWc,1961,Rita Ford's Music Boxes - A Music Box Christmas
+G5rBtt-t2wQ,1961,Various - Music From Mathematics
+ivewQhxdvcs,1961,The Sensations (2) Featuring Yvonne* - Music; Music; Music
