@@ -21,6 +21,8 @@ import javax.net.ssl.SSLServerSocket
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import javax.net.ssl.TrustManagerFactory
+import java.security.KeyStore
 
 /**
  * Manages TLS channel encryption for GuessTheSongYear multiplayer.
@@ -192,7 +194,7 @@ object SecureChannelManager {
      * @throws java.io.IOException on connection failure.
      */
     fun createRelaxedClientSSLSocket(host: String, port: Int): SSLSocket {
-        val ctx = createTrustAllContext()
+        val ctx = createDefaultContext()
         val factory = ctx.socketFactory
         val sock = factory.createSocket(host, port) as SSLSocket
         sock.enabledProtocols = arrayOf(TLS_PROTOCOL)
@@ -229,15 +231,14 @@ object SecureChannelManager {
     // Internal helpers
     // ─────────────────────────────────────────────────────────────────────────────
 
-    /** Builds a trust-all SSLContext (for relaxed client). */
-    private fun createTrustAllContext(): SSLContext {
-        val trustAllManager = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-        }
+    /** Builds a default SSLContext using the system trust store (for relaxed client). */
+    private fun createDefaultContext(): SSLContext {
+        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        // Initialise with null to use default system keystore
+        tmf.init(null as java.security.KeyStore?)
+        val trustManagers = tmf.trustManagers
         val ctx = SSLContext.getInstance(TLS_PROTOCOL)
-        ctx.init(null, arrayOf<TrustManager>(trustAllManager), SecureRandom())
+        ctx.init(null, trustManagers, SecureRandom())
         return ctx
     }
 
