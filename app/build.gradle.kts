@@ -18,8 +18,8 @@ android {
         minSdk = 24
         targetSdk = 37
         // versionCode: derived from GITHUB_RUN_NUMBER in CI, falls back to 1 locally
-        versionCode = 344
-        versionName = "1.0.344"
+        versionCode = 347
+        versionName = "1.0.347"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -222,7 +222,7 @@ dependencies {
         implementation("org.jdom:jdom2:2.0.6.1") {
             because("CVE-2021-33813")
         }
-        implementation("com.google.android.gms:play-services-basement:18.11.0") {
+        implementation("com.google.android.gms:play-services-basement:18.12.1") {
             because("CVE-2022-2390")
         }
         implementation("com.google.android.gms:play-services-tasks:18.4.1") {
