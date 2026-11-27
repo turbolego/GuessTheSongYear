@@ -18,8 +18,8 @@ android {
         minSdk = 24
         targetSdk = 37
         // versionCode: derived from GITHUB_RUN_NUMBER in CI, falls back to 1 locally
-        versionCode = 347
-        versionName = "1.0.347"
+        versionCode = 350
+        versionName = "1.0.350"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -210,7 +210,7 @@ dependencies {
         implementation("org.apache.httpcomponents:httpclient:4.5.14") {
             because("CVE-2020-13956")
         }
-        implementation("org.apache.commons:commons-lang3:3.20.0") {
+        implementation("org.apache.commons:commons-lang3:3.22.0") {
             because("CVE-2025-48924")
         }
         implementation("org.apache.commons:commons-compress:1.28.0") {
