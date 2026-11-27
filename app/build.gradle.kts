@@ -18,8 +18,8 @@ android {
         minSdk = 24
         targetSdk = 37
         // versionCode: derived from GITHUB_RUN_NUMBER in CI, falls back to 1 locally
-        versionCode = 206
-        versionName = "1.0.206"
+        versionCode = 338
+        versionName = "1.0.338"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -228,7 +228,7 @@ dependencies {
         implementation("com.google.android.gms:play-services-tasks:18.4.1") {
             because("CVE-2022-2390 transitive")
         }
-        implementation("com.google.guava:guava:33.7.1-jre") {
+        implementation("com.google.guava:guava:33.7.2-jre") {
             because("CVE-2020-8908, CVE-2023-2976")
         }
         implementation("com.google.protobuf:protobuf-java:4.36.1") {
