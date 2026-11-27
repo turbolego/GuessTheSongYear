@@ -18,8 +18,8 @@ android {
         minSdk = 24
         targetSdk = 37
         // versionCode: derived from GITHUB_RUN_NUMBER in CI, falls back to 1 locally
-        versionCode = 338
-        versionName = "1.0.338"
+        versionCode = 344
+        versionName = "1.0.344"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
