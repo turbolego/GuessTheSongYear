@@ -216,7 +216,7 @@ dependencies {
         implementation("org.apache.commons:commons-compress:1.28.0") {
             because("CVE-2024-25710, CVE-2024-26308")
         }
-        implementation("org.bitbucket.b_c:jose4j:0.9.6") {
+        implementation("org.bitbucket.b_c:jose4j:0.9.7") {
             because("CVE-2024-29371")
         }
         implementation("org.jdom:jdom2:2.0.6.1") {
